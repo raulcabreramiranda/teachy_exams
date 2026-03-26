@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  ESSAY
+  FILL_IN_THE_BLANK
+  MATCHING
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          Role
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdLists  ExerciseList[] @relation("CreatedLists")
+  assignments   Assignment[]   @relation("StudentAssignments")
+}
+
+model ExerciseList {
+  id               String       @id @default(cuid())
+  title            String
+  description      String?
+  createdById      String
+  timeLimitMinutes Int?
+  dueAt            DateTime?
+  publishedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  createdBy        User         @relation("CreatedLists", fields: [createdById], references: [id], onDelete: Cascade)
+  questions        Question[]
+  assignments      Assignment[]
+}
+
+model Question {
+  id         String       @id @default(cuid())
+  listId     String
+  order      Int
+  type       QuestionType
+  prompt     String
+  points     Float        @default(1)
+  configJson Json
+  createdAt  DateTime     @default(now())
+  list       ExerciseList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  answers    Answer[]
+
+  @@unique([listId, order])
+}
+
+model Assignment {
+  id         String       @id @default(cuid())
+  listId     String
+  studentId  String
+  assignedAt DateTime     @default(now())
+  list       ExerciseList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  student    User         @relation("StudentAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  attempts   Attempt[]
+
+  @@unique([listId, studentId])
+}
+
+model Attempt {
+  id              String        @id @default(cuid())
+  assignmentId    String        @unique
+  startedAt       DateTime      @default(now())
+  submittedAt     DateTime?
+  status          AttemptStatus @default(IN_PROGRESS)
+  totalScore      Float?
+  teacherFeedback String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  assignment      Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  answers         Answer[]
+}
+
+model Answer {
+  id          String    @id @default(cuid())
+  attemptId   String
+  questionId  String
+  responseJson Json
+  autoScore   Float?
+  manualScore Float?
+  feedback    String?
+  correctedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  attempt     Attempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+}
