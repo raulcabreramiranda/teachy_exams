@@ -105,7 +105,7 @@ export function StudentManagementTable({
   async function handleDelete(studentId: string) {
     const confirmed = await showConfirmAlert({
       title: "Archive student?",
-      text: "The student will no longer appear in active lists.",
+      text: "The student will no longer appear in active exams.",
       confirmButtonText: "Archive",
       cancelButtonText: "Keep",
     });
@@ -133,7 +133,7 @@ export function StudentManagementTable({
 
     await showSuccessAlert({
       title: "Student archived",
-      text: "The account was moved out of the active student list.",
+      text: "The account was moved out of the active exam roster.",
       timer: 1000,
     });
     router.refresh();

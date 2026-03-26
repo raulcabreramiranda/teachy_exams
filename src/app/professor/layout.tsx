@@ -12,9 +12,9 @@ export default async function TeacherLayout({
   return (
     <DashboardShell
       title="Teacher"
-      subtitle="Manage lists, students, and grading."
+      subtitle="Manage exams, students, and grading."
       navItems={[
-        { href: "/professor/lists", label: "Lists" },
+        { href: "/professor/lists", label: "Exams" },
         { href: "/professor/students", label: "Students" },
         { href: "/professor/attempts", label: "Attempts" },
       ]}

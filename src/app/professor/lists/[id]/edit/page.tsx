@@ -25,7 +25,7 @@ export default async function EditExerciseListPage({
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-2xl font-semibold">Edit exercise list</h2>
+        <h2 className="text-2xl font-semibold">Edit exam</h2>
         <p className="mt-1 text-sm text-slate-600">
           Updating questions is blocked after students create attempts to preserve grading data.
         </p>

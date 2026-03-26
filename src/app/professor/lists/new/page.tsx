@@ -10,7 +10,7 @@ export default async function NewExerciseListPage() {
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-2xl font-semibold">Create a new exercise list</h2>
+        <h2 className="text-2xl font-semibold">Create a new exam</h2>
         <p className="mt-1 text-sm text-slate-600">
           Define the rules, add questions, and optionally assign students right away.
         </p>

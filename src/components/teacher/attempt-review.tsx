@@ -258,7 +258,7 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Student</th>
-                  <th className="px-4 py-3">List</th>
+                  <th className="px-4 py-3">Exam</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>

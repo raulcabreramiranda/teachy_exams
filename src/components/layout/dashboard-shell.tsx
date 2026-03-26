@@ -31,7 +31,7 @@ export function DashboardShell({
               Teachy
             </p>
             <p className="mt-2 text-lg font-semibold text-slate-900">
-              Exercise Lists
+              Exams
             </p>
           </div>
 

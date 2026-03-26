@@ -78,7 +78,7 @@ export default async function StudentAttemptResultPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-              Result
+              Exam result
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{attempt.assignment.list.title}</h2>
             <p className="mt-1 text-sm text-slate-600">

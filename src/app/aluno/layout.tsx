@@ -12,8 +12,8 @@ export default async function StudentLayout({
   return (
     <DashboardShell
       title="Student"
-      subtitle="Review assignments and results."
-      navItems={[{ href: "/aluno", label: "Assignments" }]}
+      subtitle="Review exams and results."
+      navItems={[{ href: "/aluno", label: "Exams" }]}
     >
       {children}
     </DashboardShell>

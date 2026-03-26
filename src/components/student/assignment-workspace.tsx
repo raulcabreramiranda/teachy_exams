@@ -48,6 +48,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   const attempt = assignment.attempt;
   const [isPending, setIsPending] = useState(false);
   const [hasRequestedExpiredRefresh, setHasRequestedExpiredRefresh] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [tick, setTick] = useState(Date.now());
   const [answers, setAnswers] = useState<Record<string, unknown>>(() =>
     Object.fromEntries(
@@ -65,6 +66,10 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     const interval = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    setCurrentQuestionIndex(0);
+  }, [assignment.id, attempt?.id]);
 
   const { dueDate, effectiveDeadline } = useMemo(() => {
     const nextDueDate = assignment.list.dueAt
@@ -101,6 +106,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     : null;
 
   const isExpired = remainingMilliseconds !== null && remainingMilliseconds <= 0;
+  const currentQuestion = assignment.list.questions[currentQuestionIndex] ?? null;
 
   useEffect(() => {
     if (
@@ -209,7 +215,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
     if (!response.ok) {
       await showErrorAlert({
-        title: mode === "save" ? "Unable to save draft" : "Unable to submit attempt",
+        title: mode === "save" ? "Unable to save draft" : "Unable to submit exam",
         text: body?.message ?? "Try again in a moment.",
       });
       return;
@@ -226,7 +232,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     }
 
     await showSuccessAlert({
-      title: "Attempt submitted",
+      title: "Exam submitted",
       text: "Your answers were sent successfully.",
       timer: 900,
     });
@@ -240,7 +246,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-              Assignment
+              Exam
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{assignment.list.title}</h2>
             {assignment.list.description ? (
@@ -271,7 +277,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               disabled={isPending || (dueDate !== null && dueDate.getTime() < Date.now())}
               className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? "Starting..." : "Start attempt"}
+              {isPending ? "Starting..." : "Start exam"}
             </button>
             {dueDate !== null && dueDate.getTime() < Date.now() ? (
               <p className="text-sm text-rose-700">
@@ -283,7 +289,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
         {attempt && attempt.status !== "IN_PROGRESS" ? (
           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
-            This attempt has already been submitted.
+            This exam has already been submitted.
             {" "}
             <Link href={`/aluno/attempts/${attempt.id}/result`} className="font-semibold underline">
               View result
@@ -301,27 +307,29 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
       {attempt && attempt.status === "IN_PROGRESS" && !isExpired ? (
         <section className="space-y-6">
-          {assignment.list.questions.map((question) => (
+          {currentQuestion ? (
             <article
-              key={question.id}
+              key={currentQuestion.id}
               className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]"
             >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                    Question {question.order}
+                    Question {currentQuestion.order} of {assignment.list.questions.length}
                   </p>
-                  <h3 className="mt-2 text-lg font-semibold">{question.prompt}</h3>
+                  <h3 className="mt-2 text-lg font-semibold">{currentQuestion.prompt}</h3>
                 </div>
                 <div className="rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-700">
-                  {question.points} points
+                  {currentQuestion.points} points
                 </div>
               </div>
 
-              {question.type === QuestionType.MULTIPLE_CHOICE ? (
+              {currentQuestion.type === QuestionType.MULTIPLE_CHOICE ? (
                 <div className="grid gap-3">
-                  {(question.configJson as MultipleChoiceConfig).options.map((option) => {
-                    const currentAnswer = answers[question.id] as { selectedOptionIds?: string[] };
+                  {(currentQuestion.configJson as MultipleChoiceConfig).options.map((option) => {
+                    const currentAnswer = answers[currentQuestion.id] as {
+                      selectedOptionIds?: string[];
+                    };
                     const selectedIds = currentAnswer.selectedOptionIds ?? [];
 
                     return (
@@ -340,7 +348,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
                               return {
                                 ...currentAnswers,
-                                [question.id]: {
+                                [currentQuestion.id]: {
                                   selectedOptionIds: nextSelectedIds,
                                 },
                               };
@@ -355,13 +363,13 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 </div>
               ) : null}
 
-              {question.type === QuestionType.ESSAY ? (
+              {currentQuestion.type === QuestionType.ESSAY ? (
                 <textarea
-                  value={(answers[question.id] as { text?: string })?.text ?? ""}
+                  value={(answers[currentQuestion.id] as { text?: string })?.text ?? ""}
                   onChange={(event) =>
                     setAnswers((currentAnswers) => ({
                       ...currentAnswers,
-                      [question.id]: {
+                      [currentQuestion.id]: {
                         text: event.target.value,
                       },
                     }))
@@ -369,33 +377,36 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                   rows={8}
                   className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-amber-600 focus:bg-white"
                   placeholder={
-                    ((question.configJson as { placeholder?: string }).placeholder ??
+                    ((currentQuestion.configJson as { placeholder?: string }).placeholder ??
                       "Write your answer here.")
                   }
                 />
               ) : null}
 
-              {question.type === QuestionType.FILL_IN_THE_BLANK ? (
+              {currentQuestion.type === QuestionType.FILL_IN_THE_BLANK ? (
                 <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <div className="flex flex-wrap items-center gap-2 text-base text-slate-700">
-                    {splitTemplate((question.configJson as FillInTheBlankConfig).template).map(
+                    {splitTemplate((currentQuestion.configJson as FillInTheBlankConfig).template).map(
                       (part, index, parts) => (
-                        <span key={`${question.id}-${index}`} className="inline-flex items-center gap-2">
+                        <span
+                          key={`${currentQuestion.id}-${index}`}
+                          className="inline-flex items-center gap-2"
+                        >
                           <span>{part}</span>
                           {index < parts.length - 1 ? (
                             <input
                               value={
-                                (answers[question.id] as { blanks?: string[] })?.blanks?.[index] ?? ""
+                                (answers[currentQuestion.id] as { blanks?: string[] })?.blanks?.[index] ?? ""
                               }
                               onChange={(event) =>
                                 setAnswers((currentAnswers) => {
                                   const currentBlanks =
-                                    (currentAnswers[question.id] as { blanks?: string[] })?.blanks ??
+                                    (currentAnswers[currentQuestion.id] as { blanks?: string[] })?.blanks ??
                                     [];
                                   const nextBlanks = Array.from(
                                     {
                                       length:
-                                        (question.configJson as FillInTheBlankConfig).answers.length,
+                                        (currentQuestion.configJson as FillInTheBlankConfig).answers.length,
                                     },
                                     (_, blankIndex) =>
                                       blankIndex === index
@@ -405,7 +416,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
                                   return {
                                     ...currentAnswers,
-                                    [question.id]: {
+                                    [currentQuestion.id]: {
                                       blanks: nextBlanks,
                                     },
                                   };
@@ -421,11 +432,11 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 </div>
               ) : null}
 
-              {question.type === QuestionType.MATCHING ? (
+              {currentQuestion.type === QuestionType.MATCHING ? (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {(question.configJson as MatchingConfig).leftItems.map((leftItem) => {
+                  {(currentQuestion.configJson as MatchingConfig).leftItems.map((leftItem) => {
                     const currentPairs =
-                      (answers[question.id] as { pairs?: Record<string, string> })?.pairs ?? {};
+                      (answers[currentQuestion.id] as { pairs?: Record<string, string> })?.pairs ?? {};
 
                     return (
                       <div
@@ -440,13 +451,13 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                           onChange={(event) =>
                             setAnswers((currentAnswers) => {
                               const currentResponse =
-                                (currentAnswers[question.id] as {
+                                (currentAnswers[currentQuestion.id] as {
                                   pairs?: Record<string, string>;
                                 })?.pairs ?? {};
 
                               return {
                                 ...currentAnswers,
-                                [question.id]: {
+                                [currentQuestion.id]: {
                                   pairs: {
                                     ...currentResponse,
                                     [leftItem.id]: event.target.value,
@@ -458,7 +469,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                           className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-amber-600"
                         >
                           <option value="">Select a match</option>
-                          {(question.configJson as MatchingConfig).rightItems.map((rightItem) => (
+                          {(currentQuestion.configJson as MatchingConfig).rightItems.map((rightItem) => (
                             <option key={rightItem.id} value={rightItem.id}>
                               {rightItem.label}
                             </option>
@@ -470,25 +481,55 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 </div>
               ) : null}
             </article>
-          ))}
+          ) : null}
 
-          <div className="flex flex-wrap justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => persistAnswers("save")}
-              disabled={isPending || isExpired}
-              className="rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPending ? "Saving..." : "Save draft"}
-            </button>
-            <button
-              type="button"
-              onClick={() => persistAnswers("submit")}
-              disabled={isPending || isExpired}
-              className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isPending ? "Submitting..." : "Submit attempt"}
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentQuestionIndex((currentIndex) => Math.max(currentIndex - 1, 0))
+                }
+                disabled={currentQuestionIndex === 0}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentQuestionIndex((currentIndex) =>
+                    Math.min(currentIndex + 1, assignment.list.questions.length - 1),
+                  )
+                }
+                disabled={currentQuestionIndex === assignment.list.questions.length - 1}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Next
+              </button>
+              <span className="text-sm text-slate-500">
+                Question {currentQuestionIndex + 1} of {assignment.list.questions.length}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => persistAnswers("save")}
+                disabled={isPending || isExpired}
+                className="rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? "Saving..." : "Save draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => persistAnswers("submit")}
+                disabled={isPending || isExpired}
+                className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? "Submitting..." : "Submit exam"}
+              </button>
+            </div>
           </div>
         </section>
       ) : null}

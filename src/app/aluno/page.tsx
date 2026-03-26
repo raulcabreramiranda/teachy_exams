@@ -11,15 +11,15 @@ export default async function StudentDashboardPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-semibold">Assigned exercise lists</h2>
+        <h2 className="text-2xl font-semibold">Assigned exams</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Start a new attempt, continue an in-progress one, or review your submitted result.
+          Start a new exam, continue an in-progress one, or review your submitted result.
         </p>
       </div>
 
       {assignments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">
-          No assignments available.
+          No exams available.
         </div>
       ) : (
         <div className="grid gap-4">
@@ -68,9 +68,9 @@ export default async function StudentDashboardPage() {
                   >
                     {attempt
                       ? attempt.status === "IN_PROGRESS"
-                        ? "Continue attempt"
+                        ? "Continue exam"
                         : "View result"
-                      : "Open assignment"}
+                      : "Open exam"}
                   </Link>
                 </div>
               </article>
