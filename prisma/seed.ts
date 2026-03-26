@@ -14,12 +14,14 @@ async function main() {
         name: "Alice Teacher",
         passwordHash,
         role: Role.TEACHER,
+        deletedAt: null,
       },
       create: {
         name: "Alice Teacher",
         email: "teacher@teachy.test",
         passwordHash,
         role: Role.TEACHER,
+        deletedAt: null,
       },
     }),
     prisma.user.upsert({
@@ -30,12 +32,14 @@ async function main() {
         name: "Bob Student",
         passwordHash,
         role: Role.STUDENT,
+        deletedAt: null,
       },
       create: {
         name: "Bob Student",
         email: "bob@teachy.test",
         passwordHash,
         role: Role.STUDENT,
+        deletedAt: null,
       },
     }),
     prisma.user.upsert({
@@ -46,12 +50,14 @@ async function main() {
         name: "Carol Student",
         passwordHash,
         role: Role.STUDENT,
+        deletedAt: null,
       },
       create: {
         name: "Carol Student",
         email: "carol@teachy.test",
         passwordHash,
         role: Role.STUDENT,
+        deletedAt: null,
       },
     }),
   ]);

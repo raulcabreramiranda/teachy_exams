@@ -1,0 +1,25 @@
+import { Role } from "@prisma/client";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { requirePageSession } from "@/lib/auth";
+
+export default async function TeacherLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  await requirePageSession([Role.TEACHER]);
+
+  return (
+    <DashboardShell
+      title="Teacher"
+      subtitle="Manage lists, students, and grading."
+      navItems={[
+        { href: "/professor/lists", label: "Lists" },
+        { href: "/professor/students", label: "Students" },
+        { href: "/professor/attempts", label: "Attempts" },
+      ]}
+    >
+      {children}
+    </DashboardShell>
+  );
+}

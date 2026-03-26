@@ -483,6 +483,7 @@ export async function getStudentsForAssignmentOptions() {
   return prisma.user.findMany({
     where: {
       role: Role.STUDENT,
+      deletedAt: null,
     },
     select: {
       id: true,

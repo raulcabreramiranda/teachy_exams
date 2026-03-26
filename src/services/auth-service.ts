@@ -10,7 +10,7 @@ export async function authenticateUser(input: LoginInput) {
     },
   });
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     throw new AppError("Invalid email or password.", 401);
   }
 

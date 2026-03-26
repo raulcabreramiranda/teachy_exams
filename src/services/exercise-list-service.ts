@@ -50,6 +50,7 @@ export async function getTeacherStudents() {
   return prisma.user.findMany({
     where: {
       role: Role.STUDENT,
+      deletedAt: null,
     },
     orderBy: {
       name: "asc",
@@ -221,6 +222,7 @@ export async function assignExerciseList(
         in: input.studentIds,
       },
       role: Role.STUDENT,
+      deletedAt: null,
     },
     select: {
       id: true,
