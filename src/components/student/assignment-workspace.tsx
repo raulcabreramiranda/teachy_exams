@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/format";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
 
 type AssignmentWorkspaceProps = {
@@ -45,9 +46,8 @@ function splitTemplate(template: string) {
 export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   const router = useRouter();
   const attempt = assignment.attempt;
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hasRequestedExpiredRefresh, setHasRequestedExpiredRefresh] = useState(false);
   const [tick, setTick] = useState(Date.now());
   const [answers, setAnswers] = useState<Record<string, unknown>>(() =>
     Object.fromEntries(
@@ -102,6 +102,20 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
   const isExpired = remainingMilliseconds !== null && remainingMilliseconds <= 0;
 
+  useEffect(() => {
+    if (
+      !attempt ||
+      attempt.status !== "IN_PROGRESS" ||
+      !isExpired ||
+      hasRequestedExpiredRefresh
+    ) {
+      return;
+    }
+
+    setHasRequestedExpiredRefresh(true);
+    router.refresh();
+  }, [attempt, hasRequestedExpiredRefresh, isExpired, router]);
+
   function formatRemainingTime(milliseconds: number | null) {
     if (milliseconds === null) {
       return "No active timer";
@@ -119,9 +133,20 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   }
 
   async function handleStartAttempt() {
+    const confirmed = await showConfirmAlert({
+      title: "Start this exam?",
+      text: assignment.list.timeLimitMinutes
+        ? `The timer will start immediately and you will have ${assignment.list.timeLimitMinutes} minutes to finish.`
+        : "Once started, the attempt will be opened immediately.",
+      confirmButtonText: "Start now",
+      cancelButtonText: "Not yet",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setIsPending(true);
-    setError(null);
-    setMessage(null);
 
     const response = await fetch(`/api/student/assignments/${assignment.id}/start`, {
       method: "POST",
@@ -134,11 +159,18 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     setIsPending(false);
 
     if (!response.ok) {
-      setError(body?.message ?? "Unable to start the attempt.");
+      await showErrorAlert({
+        title: "Unable to start the exam",
+        text: body?.message ?? "Try again in a moment.",
+      });
       return;
     }
 
-    setMessage("Attempt started.");
+    await showSuccessAlert({
+      title: "Exam started",
+      text: "Your attempt is now open.",
+      timer: 900,
+    });
     router.refresh();
   }
 
@@ -148,8 +180,6 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     }
 
     setIsPending(true);
-    setError(null);
-    setMessage(null);
 
     const payload = {
       answers: assignment.list.questions.map((question) => ({
@@ -178,16 +208,28 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     setIsPending(false);
 
     if (!response.ok) {
-      setError(body?.message ?? `Unable to ${mode} the attempt.`);
+      await showErrorAlert({
+        title: mode === "save" ? "Unable to save draft" : "Unable to submit attempt",
+        text: body?.message ?? "Try again in a moment.",
+      });
       return;
     }
 
     if (mode === "save") {
-      setMessage("Draft saved.");
+      await showSuccessAlert({
+        title: "Draft saved",
+        text: "Your latest answers were stored successfully.",
+        timer: 900,
+      });
       router.refresh();
       return;
     }
 
+    await showSuccessAlert({
+      title: "Attempt submitted",
+      text: "Your answers were sent successfully.",
+      timer: 900,
+    });
     router.push(`/aluno/attempts/${attempt.id}/result`);
     router.refresh();
   }
@@ -249,20 +291,15 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
           </div>
         ) : null}
 
-        {error ? (
-          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
+        {attempt && attempt.status === "IN_PROGRESS" && isExpired ? (
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+            The allowed time has ended. This attempt is being finalized automatically.
           </div>
         ) : null}
 
-        {message ? (
-          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {message}
-          </div>
-        ) : null}
       </section>
 
-      {attempt && attempt.status === "IN_PROGRESS" ? (
+      {attempt && attempt.status === "IN_PROGRESS" && !isExpired ? (
         <section className="space-y-6">
           {assignment.list.questions.map((question) => (
             <article

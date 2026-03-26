@@ -10,9 +10,9 @@ export default async function TeacherAttemptsPage() {
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-2xl font-semibold">Submitted attempts</h2>
+        <h2 className="text-2xl font-semibold">Attempts</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Objective questions are already scored. Review essays and finalize feedback here.
+          Review pending submissions and revisit attempts that were already graded.
         </p>
       </div>
 

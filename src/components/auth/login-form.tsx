@@ -2,18 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("teacher@teachy.test");
   const [password, setPassword] = useState("password123");
-  const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsPending(true);
-    setError(null);
 
     const response = await fetch("/api/auth/login", {
       method: "POST",
@@ -33,9 +32,18 @@ export function LoginForm() {
     setIsPending(false);
 
     if (!response.ok) {
-      setError(body?.message ?? "Unable to sign in.");
+      await showErrorAlert({
+        title: "Unable to sign in",
+        text: body?.message ?? "Check the provided credentials and try again.",
+      });
       return;
     }
+
+    await showSuccessAlert({
+      title: "Signed in",
+      text: "Redirecting to your dashboard.",
+      timer: 900,
+    });
 
     router.push(body?.redirectTo ?? "/");
     router.refresh();
@@ -78,12 +86,6 @@ export function LoginForm() {
           required
         />
       </div>
-
-      {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
 
       <button
         type="submit"

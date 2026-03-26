@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "sweetalert2/dist/sweetalert2.min.css";
 
 :root {
   --background: #f8f7f4;
@@ -43,4 +44,15 @@ select {
 
 ::selection {
   background: rgba(245, 158, 11, 0.2);
+}
+
+.teachy-swal-popup {
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.teachy-swal-title {
+  color: var(--foreground);
+  font-size: 1.125rem;
+  font-weight: 600;
 }

@@ -2,8 +2,9 @@
 
 import { QuestionType } from "@prisma/client";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDateTime, formatScore } from "@/lib/format";
+import { showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
 
 type AttemptReviewProps = {
@@ -98,10 +99,25 @@ function renderResponse(
   );
 }
 
+function getAttemptFilterKey(status: string) {
+  return status === "GRADED" ? "reviewed" : "pending";
+}
+
+function getAttemptStatusLabel(status: string) {
+  return status === "GRADED" ? "Reviewed" : "Needs grading";
+}
+
 export function AttemptReview({ attempts }: AttemptReviewProps) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [pendingAttemptId, setPendingAttemptId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"pending" | "reviewed">(
+    attempts.some((attempt) => getAttemptFilterKey(attempt.status) === "pending")
+      ? "pending"
+      : "reviewed",
+  );
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(
+    attempts[0]?.id ?? null,
+  );
   const [forms, setForms] = useState(() =>
     Object.fromEntries(
       attempts.map((attempt) => [
@@ -125,13 +141,35 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
     ),
   );
 
-  const attemptSummaries = useMemo(() => attempts, [attempts]);
+  const filteredAttempts = useMemo(
+    () =>
+      attempts.filter((attempt) => getAttemptFilterKey(attempt.status) === statusFilter),
+    [attempts, statusFilter],
+  );
+
+  const selectedAttempt = useMemo(
+    () =>
+      filteredAttempts.find((attempt) => attempt.id === selectedAttemptId) ??
+      filteredAttempts[0] ??
+      null,
+    [filteredAttempts, selectedAttemptId],
+  );
+
+  useEffect(() => {
+    if (filteredAttempts.length === 0) {
+      setSelectedAttemptId(null);
+      return;
+    }
+
+    if (!selectedAttempt || selectedAttempt.id !== selectedAttemptId) {
+      setSelectedAttemptId(filteredAttempts[0].id);
+    }
+  }, [filteredAttempts, selectedAttempt, selectedAttemptId]);
 
   async function handleSubmit(attemptId: string) {
     const form = forms[attemptId];
 
     setPendingAttemptId(attemptId);
-    setError(null);
 
     const response = await fetch(`/api/teacher/attempts/${attemptId}/grade`, {
       method: "POST",
@@ -152,14 +190,22 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
     setPendingAttemptId(null);
 
     if (!response.ok) {
-      setError(body?.message ?? "Unable to save manual grading.");
+      await showErrorAlert({
+        title: "Unable to save grading",
+        text: body?.message ?? "Review the scores and try again.",
+      });
       return;
     }
 
+    await showSuccessAlert({
+      title: "Grading saved",
+      text: "The attempt review was updated successfully.",
+      timer: 1000,
+    });
     router.refresh();
   }
 
-  if (attemptSummaries.length === 0) {
+  if (attempts.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-slate-600">
         No student attempts have been submitted yet.
@@ -168,164 +214,247 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
   }
 
   return (
-    <div className="space-y-8">
-      {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
-
-      {attemptSummaries.map((attempt) => (
-        <section
-          key={attempt.id}
-          className="rounded-lg border border-slate-200 bg-white p-4"
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("pending")}
+          className={`rounded-md border px-3 py-2 text-sm font-medium ${
+            statusFilter === "pending"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:border-slate-900"
+          }`}
         >
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                {attempt.assignment.list.title}
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold">
-                {attempt.assignment.student.name}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                {attempt.assignment.student.email}
-              </p>
-            </div>
+          Needs grading (
+          {attempts.filter((attempt) => getAttemptFilterKey(attempt.status) === "pending").length}
+          )
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("reviewed")}
+          className={`rounded-md border px-3 py-2 text-sm font-medium ${
+            statusFilter === "reviewed"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:border-slate-900"
+          }`}
+        >
+          Reviewed (
+          {attempts.filter((attempt) => getAttemptFilterKey(attempt.status) === "reviewed").length}
+          )
+        </button>
+      </div>
 
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              <p>Started: {formatDateTime(attempt.startedAt)}</p>
-              <p>Submitted: {formatDateTime(attempt.submittedAt)}</p>
-              <p>Status: {attempt.status}</p>
-              <p>Total score: {formatScore(attempt.totalScore)}</p>
-            </div>
+      <div className="grid gap-4 xl:grid-cols-[360px,minmax(0,1fr)]">
+        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-900">Attempts</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Select an attempt to review the answers.
+            </p>
           </div>
 
-          <div className="mt-8 space-y-6">
-            {attempt.answers.map((answer) => (
-              <article
-                key={answer.id}
-                className="rounded-md border border-slate-200 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {answer.question.prompt}
-                    </p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                      {answer.question.type.replaceAll("_", " ")} • {answer.question.points} points
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
-                    <p>Auto score: {formatScore(answer.autoScore)}</p>
-                    <p>Manual score: {formatScore(answer.manualScore)}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-                  {renderResponse(
-                    answer.question.type,
-                    answer.responseJson,
-                    answer.question.configJson,
-                  )}
-                </div>
-
-                {answer.question.type === QuestionType.ESSAY ? (
-                  <div className="mt-4 grid gap-4 md:grid-cols-[160px,1fr]">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Manual score
-                      </label>
-                      <input
-                        value={forms[attempt.id]?.answers[answer.id]?.manualScore ?? ""}
-                        onChange={(event) =>
-                          setForms((currentForms) => ({
-                            ...currentForms,
-                            [attempt.id]: {
-                              ...currentForms[attempt.id],
-                              answers: {
-                                ...currentForms[attempt.id].answers,
-                                [answer.id]: {
-                                  ...currentForms[attempt.id].answers[answer.id],
-                                  manualScore: event.target.value,
-                                },
-                              },
-                            },
-                          }))
-                        }
-                        type="number"
-                        min={0}
-                        max={answer.question.points}
-                        step={0.5}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Feedback
-                      </label>
-                      <textarea
-                        value={forms[attempt.id]?.answers[answer.id]?.feedback ?? ""}
-                        onChange={(event) =>
-                          setForms((currentForms) => ({
-                            ...currentForms,
-                            [attempt.id]: {
-                              ...currentForms[attempt.id],
-                              answers: {
-                                ...currentForms[attempt.id].answers,
-                                [answer.id]: {
-                                  ...currentForms[attempt.id].answers[answer.id],
-                                  feedback: event.target.value,
-                                },
-                              },
-                            },
-                          }))
-                        }
-                        rows={3}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                        placeholder="Optional answer feedback"
-                      />
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-6">
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Overall feedback
-            </label>
-            <textarea
-              value={forms[attempt.id]?.teacherFeedback ?? ""}
-              onChange={(event) =>
-                setForms((currentForms) => ({
-                  ...currentForms,
-                  [attempt.id]: {
-                    ...currentForms[attempt.id],
-                    teacherFeedback: event.target.value,
-                  },
-                }))
-              }
-              rows={3}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-              placeholder="Optional summary feedback for the whole attempt"
-            />
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={() => handleSubmit(attempt.id)}
-              disabled={pendingAttemptId === attempt.id}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pendingAttemptId === attempt.id ? "Saving..." : "Save grading"}
-            </button>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">List</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredAttempts.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
+                      No attempts found for this filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredAttempts.map((attempt) => (
+                    <tr
+                      key={attempt.id}
+                      onClick={() => setSelectedAttemptId(attempt.id)}
+                      className={`cursor-pointer ${
+                        selectedAttempt?.id === attempt.id ? "bg-slate-50" : "bg-white"
+                      }`}
+                    >
+                      <td className="px-4 py-3 align-top">
+                        <div className="font-medium text-slate-900">
+                          {attempt.assignment.student.name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {formatDateTime(attempt.submittedAt)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-slate-600">
+                        {attempt.assignment.list.title}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                          {getAttemptStatusLabel(attempt.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
-      ))}
+
+        {selectedAttempt ? (
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                  {selectedAttempt.assignment.list.title}
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold">
+                  {selectedAttempt.assignment.student.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {selectedAttempt.assignment.student.email}
+                </p>
+              </div>
+
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                <p>Started: {formatDateTime(selectedAttempt.startedAt)}</p>
+                <p>Submitted: {formatDateTime(selectedAttempt.submittedAt)}</p>
+                <p>Status: {getAttemptStatusLabel(selectedAttempt.status)}</p>
+                <p>Total score: {formatScore(selectedAttempt.totalScore)}</p>
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-6">
+              {selectedAttempt.answers.map((answer) => (
+                <article
+                  key={answer.id}
+                  className="rounded-md border border-slate-200 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {answer.question.prompt}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
+                        {answer.question.type.replaceAll("_", " ")} • {answer.question.points} points
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                      <p>Auto score: {formatScore(answer.autoScore)}</p>
+                      <p>Manual score: {formatScore(answer.manualScore)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                    {renderResponse(
+                      answer.question.type,
+                      answer.responseJson,
+                      answer.question.configJson,
+                    )}
+                  </div>
+
+                  {answer.question.type === QuestionType.ESSAY ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-[160px,1fr]">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Manual score
+                        </label>
+                        <input
+                          value={forms[selectedAttempt.id]?.answers[answer.id]?.manualScore ?? ""}
+                          onChange={(event) =>
+                            setForms((currentForms) => ({
+                              ...currentForms,
+                              [selectedAttempt.id]: {
+                                ...currentForms[selectedAttempt.id],
+                                answers: {
+                                  ...currentForms[selectedAttempt.id].answers,
+                                  [answer.id]: {
+                                    ...currentForms[selectedAttempt.id].answers[answer.id],
+                                    manualScore: event.target.value,
+                                  },
+                                },
+                              },
+                            }))
+                          }
+                          type="number"
+                          min={0}
+                          max={answer.question.points}
+                          step={0.5}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Feedback
+                        </label>
+                        <textarea
+                          value={forms[selectedAttempt.id]?.answers[answer.id]?.feedback ?? ""}
+                          onChange={(event) =>
+                            setForms((currentForms) => ({
+                              ...currentForms,
+                              [selectedAttempt.id]: {
+                                ...currentForms[selectedAttempt.id],
+                                answers: {
+                                  ...currentForms[selectedAttempt.id].answers,
+                                  [answer.id]: {
+                                    ...currentForms[selectedAttempt.id].answers[answer.id],
+                                    feedback: event.target.value,
+                                  },
+                                },
+                              },
+                            }))
+                          }
+                          rows={3}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                          placeholder="Optional answer feedback"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Overall feedback
+              </label>
+              <textarea
+                value={forms[selectedAttempt.id]?.teacherFeedback ?? ""}
+                onChange={(event) =>
+                  setForms((currentForms) => ({
+                    ...currentForms,
+                    [selectedAttempt.id]: {
+                      ...currentForms[selectedAttempt.id],
+                      teacherFeedback: event.target.value,
+                    },
+                  }))
+                }
+                rows={3}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                placeholder="Optional summary feedback for the whole attempt"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleSubmit(selectedAttempt.id)}
+                disabled={pendingAttemptId === selectedAttempt.id}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingAttemptId === selectedAttempt.id ? "Saving..." : "Save grading"}
+              </button>
+            </div>
+          </section>
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+            No attempt selected.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

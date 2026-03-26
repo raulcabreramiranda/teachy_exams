@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatDateTime } from "@/lib/format";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { IconButton } from "@/components/ui/icon-button";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 
@@ -19,16 +20,21 @@ type TeacherListsTableProps = {
 
 export function TeacherListsTable({ lists }: TeacherListsTableProps) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const [pendingListId, setPendingListId] = useState<string | null>(null);
 
   async function handleDelete(listId: string) {
-    if (!window.confirm("Delete this list?")) {
+    const confirmed = await showConfirmAlert({
+      title: "Delete this list?",
+      text: "This action removes the list and its current assignments.",
+      confirmButtonText: "Delete",
+      cancelButtonText: "Keep",
+    });
+
+    if (!confirmed) {
       return;
     }
 
     setPendingListId(listId);
-    setError(null);
 
     const response = await fetch(`/api/teacher/lists/${listId}`, {
       method: "DELETE",
@@ -38,10 +44,18 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
-      setError(body?.message ?? "Unable to delete the list.");
+      await showErrorAlert({
+        title: "Unable to delete the list",
+        text: body?.message ?? "Try again in a moment.",
+      });
       return;
     }
 
+    await showSuccessAlert({
+      title: "List deleted",
+      text: "The exercise list was removed successfully.",
+      timer: 1000,
+    });
     router.refresh();
   }
 
@@ -58,12 +72,6 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
           icon={<PlusIcon />}
         />
       </div>
-
-      {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">

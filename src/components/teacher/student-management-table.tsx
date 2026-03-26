@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatDateTime } from "@/lib/format";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { IconButton } from "@/components/ui/icon-button";
 import { Modal } from "@/components/ui/modal";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
@@ -38,14 +39,12 @@ export function StudentManagementTable({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [form, setForm] = useState<StudentFormState>(emptyStudentForm);
-  const [error, setError] = useState<string | null>(null);
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   function openCreateModal() {
     setEditingStudentId(null);
     setForm(emptyStudentForm);
-    setError(null);
     setIsModalOpen(true);
   }
 
@@ -56,20 +55,17 @@ export function StudentManagementTable({
       email: student.email,
       password: "",
     });
-    setError(null);
     setIsModalOpen(true);
   }
 
   function closeModal() {
     setIsModalOpen(false);
-    setError(null);
     setForm(emptyStudentForm);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
-    setError(null);
 
     const response = await fetch(
       editingStudentId
@@ -88,21 +84,37 @@ export function StudentManagementTable({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
-      setError(body?.message ?? "Unable to save the student.");
+      await showErrorAlert({
+        title: "Unable to save the student",
+        text: body?.message ?? "Review the form data and try again.",
+      });
       return;
     }
 
     closeModal();
+    await showSuccessAlert({
+      title: editingStudentId ? "Student updated" : "Student created",
+      text: editingStudentId
+        ? "The student account was updated successfully."
+        : "The student account was created successfully.",
+      timer: 1000,
+    });
     router.refresh();
   }
 
   async function handleDelete(studentId: string) {
-    if (!window.confirm("Archive this student?")) {
+    const confirmed = await showConfirmAlert({
+      title: "Archive student?",
+      text: "The student will no longer appear in active lists.",
+      confirmButtonText: "Archive",
+      cancelButtonText: "Keep",
+    });
+
+    if (!confirmed) {
       return;
     }
 
     setPendingStudentId(studentId);
-    setError(null);
 
     const response = await fetch(`/api/teacher/students/${studentId}`, {
       method: "DELETE",
@@ -112,10 +124,18 @@ export function StudentManagementTable({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
-      setError(body?.message ?? "Unable to archive the student.");
+      await showErrorAlert({
+        title: "Unable to archive the student",
+        text: body?.message ?? "Try again in a moment.",
+      });
       return;
     }
 
+    await showSuccessAlert({
+      title: "Student archived",
+      text: "The account was moved out of the active student list.",
+      timer: 1000,
+    });
     router.refresh();
   }
 
@@ -128,12 +148,6 @@ export function StudentManagementTable({
         </div>
         <IconButton label="New student" icon={<PlusIcon />} onClick={openCreateModal} />
       </div>
-
-      {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
