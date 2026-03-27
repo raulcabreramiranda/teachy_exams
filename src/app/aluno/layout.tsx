@@ -14,6 +14,7 @@ export default async function StudentLayout({
       title="Student"
       subtitle="Review exams and results."
       navItems={[{ href: "/aluno", label: "Exams" }]}
+      showSidebar={false}
     >
       {children}
     </DashboardShell>

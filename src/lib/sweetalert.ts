@@ -68,6 +68,7 @@ export async function showConfirmAlert(options: ConfirmAlertOptions) {
       title: options.title,
       text: options.text,
       confirmButtonText: options.confirmButtonText ?? "Confirm",
+      showConfirmButton: true,
     }),
     showCancelButton: true,
     cancelButtonText: options.cancelButtonText ?? "Cancel",
