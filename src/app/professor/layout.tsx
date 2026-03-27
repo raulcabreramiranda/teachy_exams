@@ -14,6 +14,7 @@ export default async function TeacherLayout({
       title="Teacher"
       subtitle="Manage exams, students, and grading."
       navItems={[
+        { href: "/professor", label: "Dashboard", exact: true },
         { href: "/professor/lists", label: "Exams" },
         { href: "/professor/students", label: "Students" },
         { href: "/professor/attempts", label: "Attempts" },

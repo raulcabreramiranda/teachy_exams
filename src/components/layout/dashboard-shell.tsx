@@ -10,6 +10,7 @@ type DashboardShellProps = {
   navItems: Array<{
     href: string;
     label: string;
+    exact?: boolean;
   }>;
   showSidebar?: boolean;
   children: React.ReactNode;
@@ -41,7 +42,8 @@ export function DashboardShell({
             <nav className="space-y-1 px-3 py-4">
               {navItems.map((item) => {
                 const isActive =
-                  pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  pathname === item.href ||
+                  (!item.exact && pathname.startsWith(`${item.href}/`));
 
                 return (
                   <Link
