@@ -1,13 +1,15 @@
 import { AttemptStatus, Prisma, QuestionType, Role } from "@prisma/client";
+import { isTeacherReopenedAttempt } from "@/lib/attempts";
 import { prisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { getEmptyResponse, parseQuestionResponse } from "@/lib/questions";
 import {
-  calculateAttemptTotalScore,
   autoScoreQuestion,
+  calculateAttemptTotalScore,
   getAttemptDeadline,
+  getEffectiveAttemptDeadline,
   hasPendingEssayReview,
-  isTimeLimitExceeded,
+  isAttemptWindowExpired,
 } from "@/services/grading-service";
 import { ManualGradeInput, SaveAttemptAnswersInput } from "@/validations/exercise";
 
@@ -17,7 +19,181 @@ function assertDueAtIsAvailable(dueAt?: Date | null) {
   }
 }
 
+type AttemptWithListQuestionsAndAnswers = Prisma.AttemptGetPayload<{
+  include: {
+    assignment: {
+      include: {
+        list: {
+          include: {
+            questions: true;
+          };
+        };
+      };
+    };
+    answers: true;
+  };
+}>;
+
+function getAttemptCompletionStatus(
+  answers: Array<{
+    autoScore: number | null;
+    manualScore: number | null;
+    question: {
+      type: QuestionType;
+    };
+  }>,
+) {
+  return hasPendingEssayReview(answers)
+    ? AttemptStatus.SUBMITTED
+    : AttemptStatus.GRADED;
+}
+
+async function updateAttemptAnswersFromInput(
+  attempt: AttemptWithListQuestionsAndAnswers,
+  input: SaveAttemptAnswersInput,
+) {
+  const questionsById = new Map(
+    attempt.assignment.list.questions.map((question) => [question.id, question]),
+  );
+
+  await prisma.$transaction(
+    input.answers.map((answerInput) => {
+      const question = questionsById.get(answerInput.questionId);
+
+      if (!question) {
+        throw new AppError("One or more answers do not belong to this list.", 400);
+      }
+
+      const parsedResponse = parseQuestionResponse(question.type, answerInput.response);
+
+      return prisma.answer.update({
+        where: {
+          attemptId_questionId: {
+            attemptId: attempt.id,
+            questionId: question.id,
+          },
+        },
+        data: {
+          responseJson: parsedResponse as Prisma.InputJsonValue,
+        },
+      });
+    }),
+  );
+}
+
+async function finalizeExpiredAttempt(attempt: AttemptWithListQuestionsAndAnswers) {
+  const { list } = attempt.assignment;
+  const dueAt = isTeacherReopenedAttempt(attempt.status, attempt.submittedAt)
+    ? null
+    : list.dueAt;
+
+  if (
+    attempt.status !== AttemptStatus.IN_PROGRESS ||
+    !isAttemptWindowExpired(attempt.startedAt, dueAt, list.timeLimitMinutes)
+  ) {
+    return;
+  }
+
+  const finalizedAt =
+    getEffectiveAttemptDeadline(
+      attempt.startedAt,
+      dueAt,
+      list.timeLimitMinutes,
+    ) ?? new Date();
+  const questionsById = new Map(list.questions.map((question) => [question.id, question]));
+
+  await prisma.$transaction(async (transaction) => {
+    await Promise.all(
+      attempt.answers.map((answer) => {
+        const question = questionsById.get(answer.questionId);
+
+        if (!question) {
+          throw new AppError("Question not found for expired attempt.", 400);
+        }
+
+        const parsedResponse = parseQuestionResponse(question.type, answer.responseJson);
+        const autoScore = autoScoreQuestion(question, parsedResponse);
+
+        return transaction.answer.update({
+          where: {
+            id: answer.id,
+          },
+          data: {
+            responseJson: parsedResponse as Prisma.InputJsonValue,
+            autoScore,
+            correctedAt: question.type === QuestionType.ESSAY ? null : finalizedAt,
+          },
+        });
+      }),
+    );
+
+    const refreshedAnswers = await transaction.answer.findMany({
+      where: {
+        attemptId: attempt.id,
+      },
+      include: {
+        question: {
+          select: {
+            type: true,
+          },
+        },
+      },
+    });
+
+    await transaction.attempt.update({
+      where: {
+        id: attempt.id,
+      },
+      data: {
+        status: getAttemptCompletionStatus(refreshedAnswers),
+        submittedAt: finalizedAt,
+        totalScore: calculateAttemptTotalScore(refreshedAnswers),
+      },
+    });
+  });
+}
+
+async function finalizeExpiredAttempts(where: Prisma.AttemptWhereInput) {
+  const attempts = await prisma.attempt.findMany({
+    where: {
+      AND: [
+        where,
+        {
+          status: AttemptStatus.IN_PROGRESS,
+        },
+      ],
+    },
+    include: {
+      assignment: {
+        include: {
+          list: {
+            include: {
+              questions: {
+                orderBy: {
+                  order: "asc",
+                },
+              },
+            },
+          },
+        },
+      },
+      answers: true,
+    },
+  });
+
+  for (const attempt of attempts) {
+    await finalizeExpiredAttempt(attempt);
+  }
+}
+
 async function getOwnedAttempt(studentId: string, attemptId: string) {
+  await finalizeExpiredAttempts({
+    id: attemptId,
+    assignment: {
+      studentId,
+    },
+  });
+
   const attempt = await prisma.attempt.findFirst({
     where: {
       id: attemptId,
@@ -51,6 +227,12 @@ async function getOwnedAttempt(studentId: string, attemptId: string) {
 }
 
 export async function getStudentDashboardData(studentId: string) {
+  await finalizeExpiredAttempts({
+    assignment: {
+      studentId,
+    },
+  });
+
   return prisma.assignment.findMany({
     where: {
       studentId,
@@ -83,6 +265,13 @@ export async function getStudentDashboardData(studentId: string) {
 }
 
 export async function getStudentAssignmentData(studentId: string, assignmentId: string) {
+  await finalizeExpiredAttempts({
+    assignment: {
+      id: assignmentId,
+      studentId,
+    },
+  });
+
   const assignment = await prisma.assignment.findFirst({
     where: {
       id: assignmentId,
@@ -114,6 +303,13 @@ export async function getStudentAssignmentData(studentId: string, assignmentId: 
 }
 
 export async function startAttempt(studentId: string, assignmentId: string) {
+  await finalizeExpiredAttempts({
+    assignment: {
+      id: assignmentId,
+      studentId,
+    },
+  });
+
   const assignment = await prisma.assignment.findFirst({
     where: {
       id: assignmentId,
@@ -167,33 +363,7 @@ export async function saveAttemptAnswers(
     throw new AppError("Only in-progress attempts can be updated.", 409);
   }
 
-  const questionsById = new Map(
-    attempt.assignment.list.questions.map((question) => [question.id, question]),
-  );
-
-  await prisma.$transaction(
-    input.answers.map((answerInput) => {
-      const question = questionsById.get(answerInput.questionId);
-
-      if (!question) {
-        throw new AppError("One or more answers do not belong to this list.", 400);
-      }
-
-      const parsedResponse = parseQuestionResponse(question.type, answerInput.response);
-
-      return prisma.answer.update({
-        where: {
-          attemptId_questionId: {
-            attemptId,
-            questionId: question.id,
-          },
-        },
-        data: {
-          responseJson: parsedResponse as Prisma.InputJsonValue,
-        },
-      });
-    }),
-  );
+  await updateAttemptAnswersFromInput(attempt, input);
 
   return getOwnedAttempt(studentId, attemptId);
 }
@@ -203,25 +373,27 @@ export async function submitAttempt(
   attemptId: string,
   input?: SaveAttemptAnswersInput,
 ) {
-  if (input) {
-    await saveAttemptAnswers(studentId, attemptId, input);
-  }
-
-  const attempt = await getOwnedAttempt(studentId, attemptId);
-  const { list } = attempt.assignment;
+  let attempt = await getOwnedAttempt(studentId, attemptId);
 
   if (attempt.status !== AttemptStatus.IN_PROGRESS) {
-    throw new AppError("This attempt has already been submitted.", 409);
+    return attempt;
   }
 
-  assertDueAtIsAvailable(list.dueAt);
-
-  if (isTimeLimitExceeded(attempt.startedAt, list.timeLimitMinutes)) {
-    throw new AppError(
-      "The time limit for this attempt has been exceeded. Submission is blocked.",
-      409,
-    );
+  if (input) {
+    await updateAttemptAnswersFromInput(attempt, input);
   }
+
+  attempt = await getOwnedAttempt(studentId, attemptId);
+  const { list } = attempt.assignment;
+  const dueAt = isTeacherReopenedAttempt(attempt.status, attempt.submittedAt)
+    ? null
+    : list.dueAt;
+
+  if (attempt.status !== AttemptStatus.IN_PROGRESS) {
+    return attempt;
+  }
+
+  assertDueAtIsAvailable(dueAt);
 
   const questionsById = new Map(list.questions.map((question) => [question.id, question]));
 
@@ -258,19 +430,14 @@ export async function submitAttempt(
     },
   }));
 
-  const totalScore = calculateAttemptTotalScore(answerBundle);
-  const status = hasPendingEssayReview(answerBundle)
-    ? AttemptStatus.SUBMITTED
-    : AttemptStatus.GRADED;
-
   await prisma.attempt.update({
     where: {
       id: attemptId,
     },
     data: {
-      status,
+      status: getAttemptCompletionStatus(answerBundle),
       submittedAt: new Date(),
-      totalScore,
+      totalScore: calculateAttemptTotalScore(answerBundle),
     },
   });
 
@@ -278,6 +445,13 @@ export async function submitAttempt(
 }
 
 export async function getAttemptResult(studentId: string, attemptId: string) {
+  await finalizeExpiredAttempts({
+    id: attemptId,
+    assignment: {
+      studentId,
+    },
+  });
+
   const attempt = await prisma.attempt.findFirst({
     where: {
       id: attemptId,
@@ -318,6 +492,14 @@ export async function getAttemptResult(studentId: string, attemptId: string) {
 }
 
 export async function getTeacherAttemptsForReview(teacherId: string) {
+  await finalizeExpiredAttempts({
+    assignment: {
+      list: {
+        createdById: teacherId,
+      },
+    },
+  });
+
   return prisma.attempt.findMany({
     where: {
       assignment: {
@@ -443,18 +625,13 @@ export async function gradeEssayAnswers(
     },
   });
 
-  const totalScore = calculateAttemptTotalScore(refreshedAttempt.answers);
-  const status = hasPendingEssayReview(refreshedAttempt.answers)
-    ? AttemptStatus.SUBMITTED
-    : AttemptStatus.GRADED;
-
   return prisma.attempt.update({
     where: {
       id: attemptId,
     },
     data: {
-      status,
-      totalScore,
+      status: getAttemptCompletionStatus(refreshedAttempt.answers),
+      totalScore: calculateAttemptTotalScore(refreshedAttempt.answers),
       teacherFeedback: input.teacherFeedback || null,
     },
     include: {
@@ -475,6 +652,69 @@ export async function gradeEssayAnswers(
           question: true,
         },
       },
+    },
+  });
+}
+
+export async function reopenAttemptForTeacher(teacherId: string, attemptId: string) {
+  const attempt = await prisma.attempt.findFirst({
+    where: {
+      id: attemptId,
+      assignment: {
+        list: {
+          createdById: teacherId,
+        },
+      },
+    },
+    include: {
+      answers: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!attempt) {
+    throw new AppError("Attempt not found.", 404);
+  }
+
+  if (attempt.status === AttemptStatus.IN_PROGRESS) {
+    throw new AppError("This attempt is already open.", 409);
+  }
+
+  const reopenedAt = new Date();
+
+  await prisma.$transaction([
+    prisma.answer.updateMany({
+      where: {
+        attemptId,
+      },
+      data: {
+        autoScore: null,
+        manualScore: null,
+        feedback: null,
+        correctedAt: null,
+      },
+    }),
+    prisma.attempt.update({
+      where: {
+        id: attemptId,
+      },
+      data: {
+        status: AttemptStatus.IN_PROGRESS,
+        startedAt: reopenedAt,
+        // Keep a non-null submission timestamp as a lightweight reopen flag.
+        submittedAt: reopenedAt,
+        totalScore: null,
+        teacherFeedback: null,
+      },
+    }),
+  ]);
+
+  return prisma.attempt.findUniqueOrThrow({
+    where: {
+      id: attemptId,
     },
   });
 }

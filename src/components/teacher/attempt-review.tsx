@@ -4,7 +4,7 @@ import { QuestionType } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatDateTime, formatScore } from "@/lib/format";
-import { showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
 
 type AttemptReviewProps = {
@@ -110,6 +110,7 @@ function getAttemptStatusLabel(status: string) {
 export function AttemptReview({ attempts }: AttemptReviewProps) {
   const router = useRouter();
   const [pendingAttemptId, setPendingAttemptId] = useState<string | null>(null);
+  const [reopeningAttemptId, setReopeningAttemptId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"pending" | "reviewed">(
     attempts.some((attempt) => getAttemptFilterKey(attempt.status) === "pending")
       ? "pending"
@@ -200,6 +201,44 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
     await showSuccessAlert({
       title: "Grading saved",
       text: "The attempt review was updated successfully.",
+      timer: 1000,
+    });
+    router.refresh();
+  }
+
+  async function handleReopen(attemptId: string) {
+    const confirmed = await showConfirmAlert({
+      title: "Reopen this attempt?",
+      text:
+        "The student will be able to continue this exam. Existing grades and feedback will be cleared.",
+      confirmButtonText: "Reopen",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setReopeningAttemptId(attemptId);
+
+    const response = await fetch(`/api/teacher/attempts/${attemptId}/reopen`, {
+      method: "POST",
+    });
+
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    setReopeningAttemptId(null);
+
+    if (!response.ok) {
+      await showErrorAlert({
+        title: "Unable to reopen the attempt",
+        text: body?.message ?? "Try again in a moment.",
+      });
+      return;
+    }
+
+    await showSuccessAlert({
+      title: "Attempt reopened",
+      text: "The exam was returned to the student for another submission.",
       timer: 1000,
     });
     router.refresh();
@@ -438,11 +477,22 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
               />
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleReopen(selectedAttempt.id)}
+                disabled={reopeningAttemptId === selectedAttempt.id}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
+              </button>
               <button
                 type="button"
                 onClick={() => handleSubmit(selectedAttempt.id)}
-                disabled={pendingAttemptId === selectedAttempt.id}
+                disabled={
+                  pendingAttemptId === selectedAttempt.id ||
+                  reopeningAttemptId === selectedAttempt.id
+                }
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pendingAttemptId === selectedAttempt.id ? "Saving..." : "Save grading"}

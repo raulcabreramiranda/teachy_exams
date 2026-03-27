@@ -4,6 +4,7 @@ import { QuestionType } from "@prisma/client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isTeacherReopenedAttempt } from "@/lib/attempts";
 import { formatDateTime } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
@@ -46,6 +47,9 @@ function splitTemplate(template: string) {
 export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   const router = useRouter();
   const attempt = assignment.attempt;
+  const isReopenedByTeacher = attempt
+    ? isTeacherReopenedAttempt(attempt.status, attempt.submittedAt)
+    : false;
   const [isPending, setIsPending] = useState(false);
   const [hasRequestedExpiredRefresh, setHasRequestedExpiredRefresh] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -72,7 +76,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   }, [assignment.id, attempt?.id]);
 
   const { dueDate, effectiveDeadline } = useMemo(() => {
-    const nextDueDate = assignment.list.dueAt
+    const nextDueDate = !isReopenedByTeacher && assignment.list.dueAt
       ? new Date(assignment.list.dueAt)
       : null;
     const nextTimeLimitDeadline =
@@ -99,7 +103,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
         candidate.getTime() < current.getTime() ? candidate : current,
       ),
     };
-  }, [assignment.list.dueAt, assignment.list.timeLimitMinutes, attempt]);
+  }, [assignment.list.dueAt, assignment.list.timeLimitMinutes, attempt, isReopenedByTeacher]);
 
   const remainingMilliseconds = effectiveDeadline
     ? effectiveDeadline.getTime() - tick
@@ -294,6 +298,12 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
             <Link href={`/aluno/attempts/${attempt.id}/result`} className="font-semibold underline">
               View result
             </Link>
+          </div>
+        ) : null}
+
+        {attempt && attempt.status === "IN_PROGRESS" && isReopenedByTeacher ? (
+          <div className="mt-6 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-800">
+            Your teacher reopened this exam. Your previous answers were kept and the timer restarted.
           </div>
         ) : null}
 
