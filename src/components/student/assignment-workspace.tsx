@@ -44,6 +44,39 @@ function splitTemplate(template: string) {
   return template.split("{{blank}}");
 }
 
+function isQuestionAnswered(
+  question: AssignmentWorkspaceProps["assignment"]["list"]["questions"][number],
+  response: unknown,
+) {
+  if (question.type === QuestionType.MULTIPLE_CHOICE) {
+    return ((response as { selectedOptionIds?: string[] })?.selectedOptionIds ?? []).length > 0;
+  }
+
+  if (question.type === QuestionType.ESSAY) {
+    return ((response as { text?: string })?.text ?? "").trim().length > 0;
+  }
+
+  if (question.type === QuestionType.FILL_IN_THE_BLANK) {
+    const blanks = ((response as { blanks?: string[] })?.blanks ?? []).map((blank) =>
+      blank.trim(),
+    );
+    const expectedBlanks = (question.configJson as FillInTheBlankConfig).answers.length;
+
+    return (
+      blanks.length === expectedBlanks &&
+      blanks.every((blank) => blank.length > 0)
+    );
+  }
+
+  const pairs = (response as { pairs?: Record<string, string> })?.pairs ?? {};
+  const leftItems = (question.configJson as MatchingConfig).leftItems;
+
+  return leftItems.every((leftItem) => {
+    const selectedRightId = pairs[leftItem.id];
+    return typeof selectedRightId === "string" && selectedRightId.length > 0;
+  });
+}
+
 export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   const router = useRouter();
   const attempt = assignment.attempt;
@@ -242,6 +275,31 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     });
     router.push(`/aluno/attempts/${attempt.id}/result`);
     router.refresh();
+  }
+
+  async function handleSubmitExam() {
+    const unansweredQuestions = assignment.list.questions
+      .filter((question) => !isQuestionAnswered(question, answers[question.id]))
+      .map((question) => question.order);
+
+    const confirmed = await showConfirmAlert({
+      title:
+        unansweredQuestions.length > 0
+          ? "Submit with unanswered questions?"
+          : "Submit exam?",
+      text:
+        unansweredQuestions.length > 0
+          ? `You still have ${unansweredQuestions.length} unanswered question${unansweredQuestions.length === 1 ? "" : "s"}: ${unansweredQuestions.join(", ")}.`
+          : "You are about to finish this exam. You will not be able to change your answers after submission.",
+      confirmButtonText: "Submit exam",
+      cancelButtonText: "Continue editing",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    await persistAnswers("submit");
   }
 
   return (
@@ -533,7 +591,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               </button>
               <button
                 type="button"
-                onClick={() => persistAnswers("submit")}
+                onClick={handleSubmitExam}
                 disabled={isPending || isExpired}
                 className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >

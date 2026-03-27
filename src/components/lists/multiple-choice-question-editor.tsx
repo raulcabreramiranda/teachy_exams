@@ -1,3 +1,5 @@
+import { Tooltip } from "@/components/ui/tooltip";
+import { TrashIcon } from "@/components/ui/icons";
 import type { QuestionInput } from "@/validations/exercise";
 
 type MultipleChoiceQuestion = Extract<
@@ -81,46 +83,57 @@ export function MultipleChoiceQuestionEditor({
 
   return (
     <div className="space-y-3">
-      {question.config.options.map((option, index) => (
-        <div
-          key={option.id}
-          className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[auto,1fr,auto]"
-        >
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <input
-              type="checkbox"
-              checked={question.config.correctOptionIds.includes(option.id)}
-              onChange={() => toggleCorrectOption(option.id)}
-              className="h-4 w-4 rounded border-slate-300"
-            />
-            Correct
-          </label>
-
-          <input
-            value={option.text}
-            onChange={(event) => updateOption(index, event.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-            placeholder={`Option ${index + 1}`}
-          />
-
-          <button
-            type="button"
-            onClick={() => removeOption(index)}
-            disabled={question.config.options.length <= 2}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {question.config.options.map((option, index) => (
+          <div
+            key={option.id}
+            className="flex min-h-32 flex-col gap-3 rounded-md border border-slate-200 p-3"
           >
-            Remove
-          </button>
-        </div>
-      ))}
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={question.config.correctOptionIds.includes(option.id)}
+                  onChange={() => toggleCorrectOption(option.id)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                Correct
+              </label>
 
-      <button
-        type="button"
-        onClick={addOption}
-        className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
-      >
-        Add option
-      </button>
+              <Tooltip content="Remove this option">
+                <button
+                  type="button"
+                  onClick={() => removeOption(index)}
+                  disabled={question.config.options.length <= 2}
+                  aria-label="Remove this option"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="h-4 w-4">
+                    <TrashIcon />
+                  </span>
+                </button>
+              </Tooltip>
+            </div>
+
+            <input
+              value={option.text}
+              onChange={(event) => updateOption(index, event.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              placeholder={`Option ${index + 1}`}
+            />
+          </div>
+        ))}
+      </div>
+
+      <Tooltip content="Add another answer option">
+        <button
+          type="button"
+          onClick={addOption}
+          className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+        >
+          Add option
+        </button>
+      </Tooltip>
     </div>
   );
 }

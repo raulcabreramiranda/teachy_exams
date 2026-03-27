@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Tooltip } from "@/components/ui/tooltip";
 
 type IconButtonProps = {
   label: string;
@@ -30,22 +31,26 @@ export function IconButton({
 
   if (href) {
     return (
-      <Link href={href} aria-label={label} title={label} className={className}>
-        <span className="h-4 w-4">{icon}</span>
-      </Link>
+      <Tooltip content={label}>
+        <Link href={href} aria-label={label} title={label} className={className}>
+          <span className="h-4 w-4">{icon}</span>
+        </Link>
+      </Tooltip>
     );
   }
 
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      className={className}
-    >
-      <span className="h-4 w-4">{icon}</span>
-    </button>
+    <Tooltip content={label}>
+      <button
+        type={type}
+        onClick={onClick}
+        aria-label={label}
+        title={label}
+        disabled={disabled}
+        className={className}
+      >
+        <span className="h-4 w-4">{icon}</span>
+      </button>
+    </Tooltip>
   );
 }

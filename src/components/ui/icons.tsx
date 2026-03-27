@@ -28,3 +28,29 @@ export function TrashIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+      <path d="m3.5 6 4.5 4 4.5-4" />
+    </svg>
+  );
+}
+
+export function ArrowUpIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+      <path d="M8 12.5v-9" />
+      <path d="M4.5 7 8 3.5 11.5 7" />
+    </svg>
+  );
+}
+
+export function ArrowDownIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+      <path d="M8 3.5v9" />
+      <path d="m4.5 9 3.5 3.5L11.5 9" />
+    </svg>
+  );
+}

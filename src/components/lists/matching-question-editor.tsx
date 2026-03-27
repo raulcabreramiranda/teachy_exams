@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import type { QuestionInput } from "@/validations/exercise";
 
 type MatchingQuestion = Extract<QuestionInput, { type: "MATCHING" }>;
@@ -87,13 +88,15 @@ export function MatchingQuestionEditor({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-700">Left column</p>
-          <button
-            type="button"
-            onClick={addLeftItem}
-            className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
-          >
-            Add left item
-          </button>
+          <Tooltip content="Add a new item to the left column">
+            <button
+              type="button"
+              onClick={addLeftItem}
+              className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
+            >
+              Add left item
+            </button>
+          </Tooltip>
         </div>
 
         {question.config.leftItems.map((item, index) => (
@@ -131,13 +134,15 @@ export function MatchingQuestionEditor({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-700">Right column</p>
-          <button
-            type="button"
-            onClick={addRightItem}
-            className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
-          >
-            Add right item
-          </button>
+          <Tooltip content="Add a new item to the right column">
+            <button
+              type="button"
+              onClick={addRightItem}
+              className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
+            >
+              Add right item
+            </button>
+          </Tooltip>
         </div>
 
         {question.config.rightItems.map((item, index) => (

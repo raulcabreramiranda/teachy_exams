@@ -24,7 +24,7 @@ export function isTimeLimitExceeded(
     return false;
   }
 
-  return now.getTime() > startedAt.getTime() + timeLimitMinutes * 60_000;
+  return now.getTime() >= startedAt.getTime() + timeLimitMinutes * 60_000;
 }
 
 export function getAttemptDeadline(
@@ -36,6 +36,40 @@ export function getAttemptDeadline(
   }
 
   return new Date(startedAt.getTime() + timeLimitMinutes * 60_000);
+}
+
+export function getEffectiveAttemptDeadline(
+  startedAt: Date,
+  dueAt?: Date | null,
+  timeLimitMinutes?: number | null,
+) {
+  const timeLimitDeadline = getAttemptDeadline(startedAt, timeLimitMinutes);
+  const deadlines = [dueAt ?? null, timeLimitDeadline].filter(
+    (value): value is Date => Boolean(value),
+  );
+
+  if (deadlines.length === 0) {
+    return null;
+  }
+
+  return deadlines.reduce((current, candidate) =>
+    candidate.getTime() < current.getTime() ? candidate : current,
+  );
+}
+
+export function isAttemptWindowExpired(
+  startedAt: Date,
+  dueAt?: Date | null,
+  timeLimitMinutes?: number | null,
+  now = new Date(),
+) {
+  const deadline = getEffectiveAttemptDeadline(startedAt, dueAt, timeLimitMinutes);
+
+  if (!deadline) {
+    return false;
+  }
+
+  return now.getTime() >= deadline.getTime();
 }
 
 export function scoreMultipleChoice(

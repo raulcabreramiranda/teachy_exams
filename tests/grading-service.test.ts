@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   autoScoreQuestion,
   calculateAttemptTotalScore,
+  getEffectiveAttemptDeadline,
   hasPendingEssayReview,
+  isAttemptWindowExpired,
   isTimeLimitExceeded,
   scoreFillInTheBlank,
   scoreMatching,
@@ -126,5 +128,37 @@ describe("grading-service", () => {
 
     expect(isTimeLimitExceeded(startedAt, 60, now)).toBe(true);
     expect(isTimeLimitExceeded(startedAt, 90, now)).toBe(false);
+  });
+
+  it("treats the exact time limit boundary as expired", () => {
+    const startedAt = new Date("2026-03-27T10:00:00.000Z");
+    const now = new Date("2026-03-27T11:00:00.000Z");
+
+    expect(isTimeLimitExceeded(startedAt, 60, now)).toBe(true);
+  });
+
+  it("uses the earliest deadline between due date and time limit", () => {
+    const startedAt = new Date("2026-03-27T10:00:00.000Z");
+    const dueAt = new Date("2026-03-27T10:20:00.000Z");
+
+    expect(
+      getEffectiveAttemptDeadline(startedAt, dueAt, 60)?.toISOString(),
+    ).toBe("2026-03-27T10:20:00.000Z");
+  });
+
+  it("flags an attempt as expired when the effective deadline has passed", () => {
+    const startedAt = new Date("2026-03-27T10:00:00.000Z");
+    const dueAt = new Date("2026-03-27T10:20:00.000Z");
+    const now = new Date("2026-03-27T10:20:00.000Z");
+
+    expect(isAttemptWindowExpired(startedAt, dueAt, 60, now)).toBe(true);
+    expect(
+      isAttemptWindowExpired(
+        startedAt,
+        new Date("2026-03-27T11:30:00.000Z"),
+        60,
+        new Date("2026-03-27T10:30:00.000Z"),
+      ),
+    ).toBe(false);
   });
 });
