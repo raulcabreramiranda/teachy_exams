@@ -39,6 +39,7 @@ Routing rules:
 - Teacher flow
   - Create, update, delete, and publish exercise lists
   - Create and edit questions for all required types
+  - Generate draft questions with Gemini and review them before saving
   - Assign lists to existing students
   - Review submitted attempts
   - Grade essay answers manually and add feedback
@@ -150,7 +151,31 @@ Required variables:
 POSTGRES_PRISMA_URL="postgres://..."
 AUTH_SECRET="replace-this-with-a-long-random-string"
 AUTH_COOKIE_NAME="teachy_session"
+GEMINI_API_KEY="your-google-ai-studio-api-key"
+GEMINI_MODEL="gemini-2.5-flash"
 ```
+
+`GEMINI_API_KEY` is only required if you want to use the AI question generator.
+`GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
+
+## AI Question Generator
+
+Teachers can generate draft questions from the Questions tab with the `✨ Generate with AI` button.
+
+How it works:
+
+- The teacher chooses the question type, difficulty, output language, points, and a short description.
+- The app sends that request to `POST /api/ai/generate-question`.
+- The route calls Gemini with a strict JSON schema and validates the response with Zod.
+- The generated question is only inserted into the local editor after the teacher clicks `Use this question`.
+- Nothing is saved to the database until the teacher saves the exam normally.
+
+Limitations:
+
+- Teachers must review AI-generated content before saving.
+- The generator can be inaccurate or incomplete.
+- The selected generator language controls the generated content; existing database content is not translated automatically.
+- Essay sample answers are shown in the preview for teacher reference and are not saved automatically by the current editor.
 
 ## Running the Project
 

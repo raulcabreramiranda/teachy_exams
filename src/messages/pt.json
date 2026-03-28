@@ -90,6 +90,40 @@
     "fillInTheBlank": "Preencher lacunas",
     "matching": "Associação"
   },
+  "AiQuestionGenerator": {
+    "button": "✨ Gerar com IA",
+    "buttonTooltip": "Gerar um rascunho de questão com Gemini",
+    "modalTitle": "Gerar questão com IA",
+    "helperText": "Sugestões de IA podem conter erros. Revise antes de salvar.",
+    "questionType": "Tipo de questão",
+    "difficulty": "Dificuldade",
+    "language": "Idioma",
+    "points": "Pontos",
+    "description": "Descrição",
+    "descriptionPlaceholder": "Descreva o que a questão deve abordar, restrições e o tema esperado.",
+    "generate": "Gerar",
+    "generating": "Gerando...",
+    "regenerate": "Gerar novamente",
+    "useQuestion": "Usar esta questão",
+    "previewEmptyTitle": "Gere uma questão para visualizar aqui.",
+    "previewEmptyText": "A questão só será inserida no editor depois que você escolher usá-la.",
+    "fallbackError": "Não foi possível gerar a questão agora.",
+    "prompt": "Enunciado",
+    "options": "Opções",
+    "sampleAnswer": "Resposta modelo",
+    "template": "Modelo",
+    "expectedBlanks": "Lacunas esperadas",
+    "matches": "Associações",
+    "correctOption": "Correta",
+    "regularOption": "Opção",
+    "sampleAnswerNote": "Respostas modelo aparecem apenas na prévia. Revise a questão depois de inseri-la.",
+    "pointCount": "{count} {count, plural, one {ponto} other {pontos}}",
+    "difficultyOptions": {
+      "easy": "Fácil",
+      "medium": "Média",
+      "hard": "Difícil"
+    }
+  },
   "PageNavigation": {
     "goToExams": "Ir para provas"
   },
@@ -259,7 +293,15 @@
     "createSubtitle": "Defina as regras, adicione questões e opcionalmente atribua alunos imediatamente.",
     "editTitle": "Editar prova",
     "editSubtitle": "A atualização de questões é bloqueada depois que alunos criam tentativas para preservar os dados de correção.",
-    "goToExams": "Ir para provas"
+    "goToExams": "Ir para provas",
+    "addQuestion": "Adicionar questão",
+    "addQuestionTooltip": "Adicionar uma nova questão",
+    "tabs": {
+      "data": "Dados",
+      "questions": "Questões",
+      "assignments": "Atribuir a alunos",
+      "results": "Resultados"
+    }
   },
   "TeacherAttemptPage": {
     "title": "Tentativa revisada",

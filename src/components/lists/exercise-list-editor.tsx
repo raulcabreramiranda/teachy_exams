@@ -1,7 +1,9 @@
 "use client";
 
 import { QuestionType } from "@prisma/client";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { AiQuestionGeneratorModal } from "@/components/lists/ai-question-generator-modal";
 import { EssayQuestionEditor } from "@/components/lists/essay-question-editor";
 import {
   ExerciseListResults,
@@ -12,11 +14,13 @@ import { MatchingQuestionEditor } from "@/components/lists/matching-question-edi
 import { MultipleChoiceQuestionEditor } from "@/components/lists/multiple-choice-question-editor";
 import { Modal } from "@/components/ui/modal";
 import { useRouter } from "@/i18n/navigation";
+import { mapAiQuestionToQuestionInput } from "@/lib/ai-question";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, TrashIcon } from "@/components/ui/icons";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getRichTextPreview, isRichTextEmpty } from "@/lib/rich-text";
+import type { AiGeneratedQuestion } from "@/validations/ai";
 import type { QuestionInput } from "@/validations/exercise";
 
 type StudentOption = {
@@ -142,28 +146,15 @@ const emptyInitialValue: ExerciseListInitialValue = {
   results: [],
 };
 
-const questionTypeLabels: Record<QuestionType, string> = {
-  [QuestionType.MULTIPLE_CHOICE]: "Multiple choice",
-  [QuestionType.ESSAY]: "Essay",
-  [QuestionType.FILL_IN_THE_BLANK]: "Fill in the blank",
-  [QuestionType.MATCHING]: "Matching",
-};
-
-const baseEditorTabs: Array<{
-  id: Exclude<EditorTab, "results">;
-  label: string;
-}> = [
-  { id: "data", label: "Data" },
-  { id: "questions", label: "Questions" },
-  { id: "assignments", label: "Assign to students" },
-];
-
 export function ExerciseListEditor({
   mode,
   listId,
   students,
   initialValue,
 }: ExerciseListEditorProps) {
+  const tAi = useTranslations("AiQuestionGenerator");
+  const tQuestionType = useTranslations("QuestionType");
+  const tTeacherExamEditor = useTranslations("TeacherExamEditor");
   const router = useRouter();
   const startingValue = initialValue ?? emptyInitialValue;
   const [title, setTitle] = useState(startingValue.title);
@@ -188,6 +179,7 @@ export function ExerciseListEditor({
     startingValue.questions.length > 0 ? 0 : null,
   );
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [isAiQuestionModalOpen, setIsAiQuestionModalOpen] = useState(false);
   const [newQuestionDraft, setNewQuestionDraft] = useState<QuestionDraft>(
     getEmptyQuestionDraft(),
   );
@@ -218,12 +210,32 @@ export function ExerciseListEditor({
     () => questions.reduce((sum, question) => sum + question.points, 0),
     [questions],
   );
+  const questionTypeLabels: Record<QuestionType, string> = useMemo(
+    () => ({
+      [QuestionType.MULTIPLE_CHOICE]: tQuestionType("multipleChoice"),
+      [QuestionType.ESSAY]: tQuestionType("essay"),
+      [QuestionType.FILL_IN_THE_BLANK]: tQuestionType("fillInTheBlank"),
+      [QuestionType.MATCHING]: tQuestionType("matching"),
+    }),
+    [tQuestionType],
+  );
+  const baseEditorTabs: Array<{
+    id: Exclude<EditorTab, "results">;
+    label: string;
+  }> = useMemo(
+    () => [
+      { id: "data", label: tTeacherExamEditor("tabs.data") },
+      { id: "questions", label: tTeacherExamEditor("tabs.questions") },
+      { id: "assignments", label: tTeacherExamEditor("tabs.assignments") },
+    ],
+    [tTeacherExamEditor],
+  );
   const editorTabs = useMemo<Array<{ id: EditorTab; label: string }>>(
     () =>
       mode === "edit"
-        ? [...baseEditorTabs, { id: "results", label: "Results" }]
+        ? [...baseEditorTabs, { id: "results", label: tTeacherExamEditor("tabs.results") }]
         : baseEditorTabs,
-    [mode],
+    [baseEditorTabs, mode, tTeacherExamEditor],
   );
 
   function normalizeQuestionOrder(nextQuestions: QuestionInput[]) {
@@ -284,6 +296,20 @@ export function ExerciseListEditor({
     setNewQuestionDraft(getEmptyQuestionDraft());
   }
 
+  function addPrefilledQuestion(question: QuestionInput) {
+    const nextIndex = questions.length;
+
+    setQuestions((currentQuestions) => [
+      ...currentQuestions,
+      {
+        ...question,
+        order: currentQuestions.length + 1,
+      },
+    ]);
+    setActiveTab("questions");
+    setOpenQuestionIndex(nextIndex);
+  }
+
   function changeQuestionType(index: number, type: QuestionType) {
     setQuestions((currentQuestions) =>
       currentQuestions.map((question, questionIndex) =>
@@ -305,6 +331,18 @@ export function ExerciseListEditor({
 
   function closeAddQuestionModal() {
     setIsQuestionModalOpen(false);
+  }
+
+  function openAiQuestionModal() {
+    setIsAiQuestionModalOpen(true);
+  }
+
+  function closeAiQuestionModal() {
+    setIsAiQuestionModalOpen(false);
+  }
+
+  function useAiGeneratedQuestion(question: AiGeneratedQuestion) {
+    addPrefilledQuestion(mapAiQuestionToQuestionInput(question, questions.length + 1));
   }
 
   function moveQuestion(index: number, direction: "up" | "down") {
@@ -612,15 +650,27 @@ export function ExerciseListEditor({
             </p>
           </div>
 
-          <Tooltip content="Add a new question">
-            <button
-              type="button"
-              onClick={openAddQuestionModal}
-              className="app-button-secondary px-3 py-1.5 text-xs"
-            >
-              Add question
-            </button>
-          </Tooltip>
+          <div className="flex flex-wrap items-center gap-2">
+            <Tooltip content={tAi("buttonTooltip")}>
+              <button
+                type="button"
+                onClick={openAiQuestionModal}
+                className="app-button-secondary px-3 py-1.5 text-xs"
+              >
+                {tAi("button")}
+              </button>
+            </Tooltip>
+
+            <Tooltip content={tTeacherExamEditor("addQuestionTooltip")}>
+              <button
+                type="button"
+                onClick={openAddQuestionModal}
+                className="app-button-secondary px-3 py-1.5 text-xs"
+              >
+                {tTeacherExamEditor("addQuestion")}
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
         <div className="mt-8 space-y-6">
@@ -899,6 +949,12 @@ export function ExerciseListEditor({
             </div>
           </div>
         </Modal>
+
+        <AiQuestionGeneratorModal
+          open={isAiQuestionModalOpen}
+          onClose={closeAiQuestionModal}
+          onUseQuestion={useAiGeneratedQuestion}
+        />
         </section>
       ) : null}
 

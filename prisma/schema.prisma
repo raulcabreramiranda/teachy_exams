@@ -36,6 +36,7 @@ model User {
   updatedAt     DateTime       @updatedAt
   createdLists  ExerciseList[] @relation("CreatedLists")
   assignments   Assignment[]   @relation("StudentAssignments")
+  aiQuestionGenerationLogs AiQuestionGenerationLog[]
 }
 
 model ExerciseList {
@@ -110,4 +111,22 @@ model Answer {
   question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([attemptId, questionId])
+}
+
+model AiQuestionGenerationLog {
+  id            String   @id @default(cuid())
+  requestedById String
+  model         String
+  requestJson   Json
+  responseText  String?
+  responseJson  Json?
+  status        String
+  strictRetry   Boolean  @default(false)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  requestedBy   User     @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@index([requestedById, createdAt])
+  @@index([status, createdAt])
 }

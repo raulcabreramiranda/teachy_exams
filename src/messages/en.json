@@ -90,6 +90,40 @@
     "fillInTheBlank": "Fill in the blank",
     "matching": "Matching"
   },
+  "AiQuestionGenerator": {
+    "button": "✨ Generate with AI",
+    "buttonTooltip": "Generate a question draft with Gemini",
+    "modalTitle": "Generate question with AI",
+    "helperText": "AI suggestions may be inaccurate. Please review before saving.",
+    "questionType": "Question type",
+    "difficulty": "Difficulty",
+    "language": "Language",
+    "points": "Points",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe what you want the question to cover, any constraints, and the expected topic.",
+    "generate": "Generate",
+    "generating": "Generating...",
+    "regenerate": "Regenerate",
+    "useQuestion": "Use this question",
+    "previewEmptyTitle": "Generate a question to preview it here.",
+    "previewEmptyText": "The question will only be inserted into the editor after you choose to use it.",
+    "fallbackError": "Unable to generate a question right now.",
+    "prompt": "Prompt",
+    "options": "Options",
+    "sampleAnswer": "Sample answer",
+    "template": "Template",
+    "expectedBlanks": "Expected blanks",
+    "matches": "Matches",
+    "correctOption": "Correct",
+    "regularOption": "Option",
+    "sampleAnswerNote": "Sample answers are preview-only. Review the question after inserting it.",
+    "pointCount": "{count} {count, plural, one {point} other {points}}",
+    "difficultyOptions": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    }
+  },
   "PageNavigation": {
     "goToExams": "Go to exams"
   },
@@ -259,7 +293,15 @@
     "createSubtitle": "Define the rules, add questions, and optionally assign students right away.",
     "editTitle": "Edit exam",
     "editSubtitle": "Updating questions is blocked after students create attempts to preserve grading data.",
-    "goToExams": "Go to exams"
+    "goToExams": "Go to exams",
+    "addQuestion": "Add question",
+    "addQuestionTooltip": "Add a new question",
+    "tabs": {
+      "data": "Data",
+      "questions": "Questions",
+      "assignments": "Assign to students",
+      "results": "Results"
+    }
   },
   "TeacherAttemptPage": {
     "title": "Reviewed attempt",

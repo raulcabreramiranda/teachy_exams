@@ -90,6 +90,40 @@
     "fillInTheBlank": "Completar espacios",
     "matching": "Relacionar"
   },
+  "AiQuestionGenerator": {
+    "button": "✨ Generar con IA",
+    "buttonTooltip": "Generar un borrador de pregunta con Gemini",
+    "modalTitle": "Generar pregunta con IA",
+    "helperText": "Las sugerencias de IA pueden ser inexactas. Revísalas antes de guardar.",
+    "questionType": "Tipo de pregunta",
+    "difficulty": "Dificultad",
+    "language": "Idioma",
+    "points": "Puntos",
+    "description": "Descripción",
+    "descriptionPlaceholder": "Describe qué debe cubrir la pregunta, sus restricciones y el tema esperado.",
+    "generate": "Generar",
+    "generating": "Generando...",
+    "regenerate": "Volver a generar",
+    "useQuestion": "Usar esta pregunta",
+    "previewEmptyTitle": "Genera una pregunta para verla aquí.",
+    "previewEmptyText": "La pregunta solo se insertará en el editor después de que decidas usarla.",
+    "fallbackError": "No fue posible generar la pregunta ahora.",
+    "prompt": "Enunciado",
+    "options": "Opciones",
+    "sampleAnswer": "Respuesta modelo",
+    "template": "Plantilla",
+    "expectedBlanks": "Espacios esperados",
+    "matches": "Relaciones",
+    "correctOption": "Correcta",
+    "regularOption": "Opción",
+    "sampleAnswerNote": "Las respuestas modelo solo aparecen en la vista previa. Revisa la pregunta después de insertarla.",
+    "pointCount": "{count} {count, plural, one {punto} other {puntos}}",
+    "difficultyOptions": {
+      "easy": "Fácil",
+      "medium": "Media",
+      "hard": "Difícil"
+    }
+  },
   "PageNavigation": {
     "goToExams": "Ir a exámenes"
   },
@@ -259,7 +293,15 @@
     "createSubtitle": "Define las reglas, agrega preguntas y opcionalmente asigna estudiantes de inmediato.",
     "editTitle": "Editar examen",
     "editSubtitle": "La actualización de preguntas se bloquea después de que los estudiantes crean intentos para preservar los datos de corrección.",
-    "goToExams": "Ir a exámenes"
+    "goToExams": "Ir a exámenes",
+    "addQuestion": "Agregar pregunta",
+    "addQuestionTooltip": "Agregar una nueva pregunta",
+    "tabs": {
+      "data": "Datos",
+      "questions": "Preguntas",
+      "assignments": "Asignar a estudiantes",
+      "results": "Resultados"
+    }
   },
   "TeacherAttemptPage": {
     "title": "Intento revisado",
