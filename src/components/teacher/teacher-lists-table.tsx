@@ -73,9 +73,9 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
         />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <div className="app-card overflow-hidden">
+        <table className="app-table">
+          <thead>
             <tr>
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Status</th>
@@ -85,7 +85,7 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {lists.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
@@ -97,7 +97,15 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
                 <tr key={list.id}>
                   <td className="px-4 py-3 font-medium text-slate-900">{list.title}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    {list.publishedAt ? "Published" : "Draft"}
+                    <span
+                      className={
+                        list.publishedAt
+                          ? "app-badge app-badge-success"
+                          : "app-badge"
+                      }
+                    >
+                      {list.publishedAt ? "✅ Published" : "Draft"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{list.questionsCount}</td>
                   <td className="px-4 py-3 text-slate-600">{list.assignmentsCount}</td>

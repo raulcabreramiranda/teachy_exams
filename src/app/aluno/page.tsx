@@ -4,6 +4,22 @@ import { formatDateTime, formatScore } from "@/lib/format";
 import { requirePageSession } from "@/lib/auth";
 import { getStudentDashboardData } from "@/services/attempt-service";
 
+function getStatusBadge(status: AttemptStatus | null) {
+  if (status === AttemptStatus.GRADED) {
+    return "app-badge app-badge-success";
+  }
+
+  if (status === AttemptStatus.SUBMITTED) {
+    return "app-badge app-badge-info";
+  }
+
+  if (status === AttemptStatus.IN_PROGRESS) {
+    return "app-badge app-badge-warning";
+  }
+
+  return "app-badge";
+}
+
 export default async function StudentDashboardPage() {
   const session = await requirePageSession([Role.STUDENT]);
   const assignments = await getStudentDashboardData(session.userId);
@@ -21,7 +37,7 @@ export default async function StudentDashboardPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <section className="app-page-header p-5">
         <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
         <p className="mt-1 text-sm text-slate-600">
           Review assigned exams, continue open attempts, and revisit your results.
@@ -29,37 +45,37 @@ export default async function StudentDashboardPage() {
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-lg border border-slate-200 bg-white p-4">
+        <article className="app-card p-4">
           <p className="text-sm text-slate-500">Assigned exams</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{assignments.length}</p>
         </article>
 
-        <article className="rounded-lg border border-slate-200 bg-white p-4">
+        <article className="app-card p-4">
           <p className="text-sm text-slate-500">Ready to start</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{notStartedCount}</p>
         </article>
 
-        <article className="rounded-lg border border-slate-200 bg-white p-4">
+        <article className="app-card p-4">
           <p className="text-sm text-slate-500">In progress</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{inProgressCount}</p>
         </article>
 
-        <article className="rounded-lg border border-slate-200 bg-white p-4">
+        <article className="app-card p-4">
           <p className="text-sm text-slate-500">Results available</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{resultCount}</p>
         </article>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
+      <section className="app-card overflow-hidden">
+        <div className="app-card-header px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-900">Assigned exams</h3>
           <p className="text-sm text-slate-500">
             Start a new exam, continue an in-progress one, or review your result.
           </p>
         </div>
 
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+        <table className="app-table">
+          <thead>
             <tr>
               <th className="px-4 py-3">Exam</th>
               <th className="px-4 py-3">Status</th>
@@ -70,7 +86,7 @@ export default async function StudentDashboardPage() {
               <th className="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {assignments.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
@@ -96,7 +112,9 @@ export default async function StudentDashboardPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
-                      {attempt ? attempt.status.replaceAll("_", " ") : "Not started"}
+                      <span className={getStatusBadge(attempt?.status ?? null)}>
+                        {attempt ? attempt.status.replaceAll("_", " ") : "⏳ Not started"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{formatDateTime(assignment.assignedAt)}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDateTime(assignment.list.dueAt)}</td>
@@ -109,7 +127,7 @@ export default async function StudentDashboardPage() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={actionHref}
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+                        className="app-button-secondary px-3 py-2"
                       >
                         {attempt
                           ? attempt.status === AttemptStatus.IN_PROGRESS

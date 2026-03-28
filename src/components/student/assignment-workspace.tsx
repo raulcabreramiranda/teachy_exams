@@ -4,6 +4,7 @@ import { QuestionType } from "@prisma/client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { isTeacherReopenedAttempt } from "@/lib/attempts";
 import { formatDateTime } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
@@ -217,10 +218,19 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     router.refresh();
   }
 
-  async function persistAnswers(mode: "save" | "submit") {
+  async function persistAnswers(
+    mode: "save" | "submit",
+    options?: {
+      silent?: boolean;
+      refresh?: boolean;
+    },
+  ) {
     if (!attempt) {
-      return;
+      return false;
     }
+
+    const silent = options?.silent ?? false;
+    const shouldRefresh = options?.refresh ?? mode === "submit";
 
     setIsPending(true);
 
@@ -251,21 +261,30 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     setIsPending(false);
 
     if (!response.ok) {
-      await showErrorAlert({
-        title: mode === "save" ? "Unable to save draft" : "Unable to submit exam",
-        text: body?.message ?? "Try again in a moment.",
-      });
-      return;
+      if (!silent) {
+        await showErrorAlert({
+          title: mode === "save" ? "Unable to save draft" : "Unable to submit exam",
+          text: body?.message ?? "Try again in a moment.",
+        });
+      }
+
+      return false;
     }
 
     if (mode === "save") {
-      await showSuccessAlert({
-        title: "Draft saved",
-        text: "Your latest answers were stored successfully.",
-        timer: 900,
-      });
-      router.refresh();
-      return;
+      if (!silent) {
+        await showSuccessAlert({
+          title: "Draft saved",
+          text: "Your latest answers were stored successfully.",
+          timer: 900,
+        });
+      }
+
+      if (shouldRefresh) {
+        router.refresh();
+      }
+
+      return true;
     }
 
     await showSuccessAlert({
@@ -274,7 +293,10 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
       timer: 900,
     });
     router.push(`/aluno/attempts/${attempt.id}/result`);
-    router.refresh();
+    if (shouldRefresh) {
+      router.refresh();
+    }
+    return true;
   }
 
   async function handleSubmitExam() {
@@ -302,9 +324,35 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     await persistAnswers("submit");
   }
 
+  async function handleQuestionNavigation(direction: "previous" | "next") {
+    const targetIndex =
+      direction === "previous"
+        ? Math.max(currentQuestionIndex - 1, 0)
+        : Math.min(currentQuestionIndex + 1, assignment.list.questions.length - 1);
+
+    if (targetIndex === currentQuestionIndex) {
+      return;
+    }
+
+    const saved = await persistAnswers("save", {
+      silent: true,
+      refresh: false,
+    });
+
+    if (!saved) {
+      await showErrorAlert({
+        title: "Unable to change question",
+        text: "Your draft could not be saved. Try again in a moment.",
+      });
+      return;
+    }
+
+    setCurrentQuestionIndex(targetIndex);
+  }
+
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]">
+      <section className="app-card rounded-3xl p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
@@ -318,7 +366,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
             ) : null}
           </div>
 
-          <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+          <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
             <p>Assigned: {formatDateTime(assignment.assignedAt)}</p>
             <p>Due date: {formatDateTime(assignment.list.dueAt)}</p>
             <p>
@@ -337,7 +385,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               type="button"
               onClick={handleStartAttempt}
               disabled={isPending || (dueDate !== null && dueDate.getTime() < Date.now())}
-              className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-button-primary rounded-full px-6 py-3"
             >
               {isPending ? "Starting..." : "Start exam"}
             </button>
@@ -350,7 +398,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
         ) : null}
 
         {attempt && attempt.status !== "IN_PROGRESS" ? (
-          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
+          <div className="app-panel mt-6 rounded-2xl border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
             This exam has already been submitted.
             {" "}
             <Link href={`/aluno/attempts/${attempt.id}/result`} className="font-semibold underline">
@@ -360,13 +408,13 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
         ) : null}
 
         {attempt && attempt.status === "IN_PROGRESS" && isReopenedByTeacher ? (
-          <div className="mt-6 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-800">
+          <div className="app-panel mt-6 rounded-2xl border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-800">
             Your teacher reopened this exam. Your previous answers were kept and the timer restarted.
           </div>
         ) : null}
 
         {attempt && attempt.status === "IN_PROGRESS" && isExpired ? (
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+          <div className="app-panel mt-6 rounded-2xl border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
             The allowed time has ended. This attempt is being finalized automatically.
           </div>
         ) : null}
@@ -378,16 +426,19 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
           {currentQuestion ? (
             <article
               key={currentQuestion.id}
-              className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]"
+              className="app-card rounded-3xl p-8"
             >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
                     Question {currentQuestion.order} of {assignment.list.questions.length}
                   </p>
-                  <h3 className="mt-2 text-lg font-semibold">{currentQuestion.prompt}</h3>
+                  <RichTextContent
+                    html={currentQuestion.prompt}
+                    className="mt-2 text-lg font-semibold text-slate-900"
+                  />
                 </div>
-                <div className="rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-700">
+                <div className="app-badge app-badge-info px-4 py-2 text-sm">
                   {currentQuestion.points} points
                 </div>
               </div>
@@ -403,7 +454,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                     return (
                       <label
                         key={option.id}
-                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                        className="app-panel flex items-center gap-3 rounded-2xl px-4 py-4"
                       >
                         <input
                           type="checkbox"
@@ -443,7 +494,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                     }))
                   }
                   rows={8}
-                  className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-amber-600 focus:bg-white"
+                  className="app-textarea rounded-2xl bg-slate-50 px-4 py-3"
                   placeholder={
                     ((currentQuestion.configJson as { placeholder?: string }).placeholder ??
                       "Write your answer here.")
@@ -452,7 +503,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               ) : null}
 
               {currentQuestion.type === QuestionType.FILL_IN_THE_BLANK ? (
-                <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="app-panel space-y-4 rounded-2xl p-5">
                   <div className="flex flex-wrap items-center gap-2 text-base text-slate-700">
                     {splitTemplate((currentQuestion.configJson as FillInTheBlankConfig).template).map(
                       (part, index, parts) => (
@@ -490,7 +541,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                                   };
                                 })
                               }
-                              className="min-w-36 rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-amber-600"
+                              className="app-input min-w-36 rounded-xl"
                             />
                           ) : null}
                         </span>
@@ -509,7 +560,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                     return (
                       <div
                         key={leftItem.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        className="app-panel rounded-2xl p-4"
                       >
                         <p className="mb-3 text-sm font-medium text-slate-700">
                           {leftItem.label}
@@ -534,7 +585,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                               };
                             })
                           }
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-amber-600"
+                          className="app-select rounded-xl"
                         >
                           <option value="">Select a match</option>
                           {(currentQuestion.configJson as MatchingConfig).rightItems.map((rightItem) => (
@@ -551,27 +602,23 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
             </article>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]">
+          <div className="app-card flex flex-wrap items-center justify-between gap-3 rounded-3xl p-5">
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() =>
-                  setCurrentQuestionIndex((currentIndex) => Math.max(currentIndex - 1, 0))
-                }
-                disabled={currentQuestionIndex === 0}
-                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => handleQuestionNavigation("previous")}
+                disabled={isPending || currentQuestionIndex === 0}
+                className="app-button-secondary rounded-full px-4 py-2"
               >
                 Previous
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  setCurrentQuestionIndex((currentIndex) =>
-                    Math.min(currentIndex + 1, assignment.list.questions.length - 1),
-                  )
+                onClick={() => handleQuestionNavigation("next")}
+                disabled={
+                  isPending || currentQuestionIndex === assignment.list.questions.length - 1
                 }
-                disabled={currentQuestionIndex === assignment.list.questions.length - 1}
-                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-button-secondary rounded-full px-4 py-2"
               >
                 Next
               </button>
@@ -585,7 +632,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 type="button"
                 onClick={() => persistAnswers("save")}
                 disabled={isPending || isExpired}
-                className="rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-button-secondary rounded-full px-6 py-3"
               >
                 {isPending ? "Saving..." : "Save draft"}
               </button>
@@ -593,7 +640,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 type="button"
                 onClick={handleSubmitExam}
                 disabled={isPending || isExpired}
-                className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-button-primary rounded-full px-6 py-3"
               >
                 {isPending ? "Submitting..." : "Submit exam"}
               </button>

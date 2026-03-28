@@ -1,6 +1,7 @@
 import { QuestionType } from "@prisma/client";
 import { z } from "zod";
 import { getFillBlankCount } from "@/lib/question-helpers";
+import { getRichTextPreview, sanitizeRichTextHtml } from "@/lib/rich-text";
 
 const optionSchema = z.object({
   id: z.string().min(1),
@@ -100,7 +101,12 @@ export const matchingConfigSchema = z
 const baseQuestionSchema = z.object({
   id: z.string().optional(),
   order: z.number().int().min(1),
-  prompt: z.string().trim().min(1),
+  prompt: z
+    .string()
+    .transform((value) => sanitizeRichTextHtml(value))
+    .refine((value) => getRichTextPreview(value).length > 0, {
+      message: "Prompt is required.",
+    }),
   points: z.number().positive().default(1),
 });
 
@@ -160,7 +166,7 @@ export const manualGradeInputSchema = z.object({
   answers: z.array(
     z.object({
       answerId: z.string().min(1),
-      manualScore: z.number().min(0),
+      manualScore: z.number().min(0).nullable(),
       feedback: z.string().trim().max(2_000).optional(),
     }),
   ),

@@ -52,7 +52,7 @@ export function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-lg border border-slate-200 bg-white p-6"
+      className="app-card space-y-5 p-6"
     >
       <div className="space-y-1">
         <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
@@ -67,7 +67,7 @@ export function LoginForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           type="email"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          className="app-input"
           placeholder="teacher@teachy.test"
           required
         />
@@ -81,7 +81,7 @@ export function LoginForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           type="password"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          className="app-input"
           placeholder="password123"
           required
         />
@@ -90,12 +90,12 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="app-button-primary w-full px-3 py-2"
       >
         {isPending ? "Signing in..." : "Sign in"}
       </button>
 
-      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+      <div className="app-panel px-3 py-3 text-xs text-slate-600">
         <p className="font-medium text-slate-700">Seeded accounts</p>
         <p className="mt-1">Teacher: teacher@teachy.test / password123</p>
         <p>Students: bob@teachy.test or carol@teachy.test / password123</p>

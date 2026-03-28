@@ -7,9 +7,12 @@ import { EssayQuestionEditor } from "@/components/lists/essay-question-editor";
 import { FillInTheBlankQuestionEditor } from "@/components/lists/fill-in-the-blank-question-editor";
 import { MatchingQuestionEditor } from "@/components/lists/matching-question-editor";
 import { MultipleChoiceQuestionEditor } from "@/components/lists/multiple-choice-question-editor";
+import { Modal } from "@/components/ui/modal";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, TrashIcon } from "@/components/ui/icons";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip } from "@/components/ui/tooltip";
+import { getRichTextPreview, isRichTextEmpty } from "@/lib/rich-text";
 import type { QuestionInput } from "@/validations/exercise";
 
 type StudentOption = {
@@ -39,38 +42,67 @@ type ExerciseListInitialValue = NonNullable<
 
 type EditorTab = "data" | "questions" | "assignments";
 
-function createDefaultQuestion(type: QuestionType, order: number): QuestionInput {
+type QuestionDraft = {
+  type: QuestionType;
+  points: number;
+  prompt: string;
+};
+
+function getEmptyQuestionDraft(): QuestionDraft {
+  return {
+    type: QuestionType.MULTIPLE_CHOICE,
+    points: 1,
+    prompt: "",
+  };
+}
+
+function createDefaultQuestion(
+  type: QuestionType,
+  order: number,
+  metadata?: {
+    id?: string;
+    prompt?: string;
+    points?: number;
+  },
+): QuestionInput {
+  const id = metadata?.id;
+  const prompt = metadata?.prompt ?? "";
+  const points = metadata?.points ?? 1;
+
   switch (type) {
     case QuestionType.MULTIPLE_CHOICE:
       return {
+        id,
         order,
-        type,
-        prompt: "",
-        points: 1,
+        type: QuestionType.MULTIPLE_CHOICE,
+        prompt,
+        points,
         config: {
           options: [
             { id: crypto.randomUUID(), text: "" },
             { id: crypto.randomUUID(), text: "" },
           ],
-          correctOptionIds: [],
+          correctOptionIds: [] as string[],
         },
       };
     case QuestionType.ESSAY:
       return {
+        id,
         order,
-        type,
-        prompt: "",
-        points: 1,
+        type: QuestionType.ESSAY,
+        prompt,
+        points,
         config: {
           placeholder: "",
         },
       };
     case QuestionType.FILL_IN_THE_BLANK:
       return {
+        id,
         order,
-        type,
-        prompt: "",
-        points: 1,
+        type: QuestionType.FILL_IN_THE_BLANK,
+        prompt,
+        points,
         config: {
           template: "Use {{blank}} in the sentence.",
           answers: [""],
@@ -78,10 +110,11 @@ function createDefaultQuestion(type: QuestionType, order: number): QuestionInput
       };
     case QuestionType.MATCHING:
       return {
+        id,
         order,
-        type,
-        prompt: "",
-        points: 1,
+        type: QuestionType.MATCHING,
+        prompt,
+        points,
         config: {
           leftItems: [{ id: crypto.randomUUID(), label: "" }],
           rightItems: [{ id: crypto.randomUUID(), label: "" }],
@@ -97,7 +130,7 @@ const emptyInitialValue: ExerciseListInitialValue = {
   timeLimitMinutes: "",
   dueAt: "",
   publish: false,
-  questions: [createDefaultQuestion(QuestionType.MULTIPLE_CHOICE, 1)],
+  questions: [],
   selectedStudentIds: [],
 };
 
@@ -134,17 +167,37 @@ export function ExerciseListEditor({
       ? startingValue.questions
       : emptyInitialValue.questions,
   );
+  const [studentFilter, setStudentFilter] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(
     startingValue.selectedStudentIds,
   );
   const [activeTab, setActiveTab] = useState<EditorTab>("data");
-  const [openQuestionIndex, setOpenQuestionIndex] = useState<number | null>(0);
+  const [openQuestionIndex, setOpenQuestionIndex] = useState<number | null>(
+    startingValue.questions.length > 0 ? 0 : null,
+  );
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [newQuestionDraft, setNewQuestionDraft] = useState<QuestionDraft>(
+    getEmptyQuestionDraft(),
+  );
   const [isPending, setIsPending] = useState(false);
 
   const assignedStudents = useMemo(
     () => students.filter((student) => selectedStudentIds.includes(student.id)),
     [selectedStudentIds, students],
   );
+  const filteredStudents = useMemo(() => {
+    const normalizedFilter = studentFilter.trim().toLowerCase();
+
+    if (!normalizedFilter) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      const haystack = `${student.name} ${student.email}`.toLowerCase();
+
+      return haystack.includes(normalizedFilter);
+    });
+  }, [studentFilter, students]);
 
   function normalizeQuestionOrder(nextQuestions: QuestionInput[]) {
     return nextQuestions.map((question, index) => ({
@@ -168,6 +221,10 @@ export function ExerciseListEditor({
       ),
     );
     setOpenQuestionIndex((currentOpenQuestionIndex) => {
+      if (questions.length <= 1) {
+        return null;
+      }
+
       if (currentOpenQuestionIndex === null) {
         return null;
       }
@@ -184,23 +241,43 @@ export function ExerciseListEditor({
     });
   }
 
-  function addQuestion(type: QuestionType) {
+  function addQuestion(questionDraft: QuestionDraft) {
     const nextIndex = questions.length;
 
     setQuestions((currentQuestions) => [
       ...currentQuestions,
-      createDefaultQuestion(type, currentQuestions.length + 1),
+      createDefaultQuestion(questionDraft.type, currentQuestions.length + 1, {
+        prompt: questionDraft.prompt,
+        points: questionDraft.points,
+      }),
     ]);
     setActiveTab("questions");
     setOpenQuestionIndex(nextIndex);
+    setIsQuestionModalOpen(false);
+    setNewQuestionDraft(getEmptyQuestionDraft());
   }
 
   function changeQuestionType(index: number, type: QuestionType) {
     setQuestions((currentQuestions) =>
       currentQuestions.map((question, questionIndex) =>
-        questionIndex === index ? createDefaultQuestion(type, question.order) : question,
+        questionIndex === index
+          ? createDefaultQuestion(type, question.order, {
+              id: question.id,
+              prompt: question.prompt,
+              points: question.points,
+            })
+          : question,
       ),
     );
+  }
+
+  function openAddQuestionModal() {
+    setNewQuestionDraft(getEmptyQuestionDraft());
+    setIsQuestionModalOpen(true);
+  }
+
+  function closeAddQuestionModal() {
+    setIsQuestionModalOpen(false);
   }
 
   function moveQuestion(index: number, direction: "up" | "down") {
@@ -378,10 +455,10 @@ export function ExerciseListEditor({
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-md border px-3 py-2 text-sm font-medium ${
+            className={`app-toggle-button px-3 py-2 ${
               activeTab === tab.id
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-300 bg-white text-slate-700 hover:border-slate-900"
+                ? "app-toggle-button-active"
+                : ""
             }`}
           >
             {tab.label}
@@ -390,7 +467,7 @@ export function ExerciseListEditor({
       </div>
 
       {activeTab === "data" ? (
-        <section className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 lg:grid-cols-2">
+        <section className="app-card grid gap-4 p-4 lg:grid-cols-2">
           <div className="space-y-5">
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -399,7 +476,7 @@ export function ExerciseListEditor({
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                className="app-input"
                 placeholder="Midterm exam"
                 required
               />
@@ -413,7 +490,7 @@ export function ExerciseListEditor({
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                className="app-textarea"
                 placeholder="Add a short description for students."
               />
             </div>
@@ -429,7 +506,7 @@ export function ExerciseListEditor({
                 onChange={(event) => setTimeLimitMinutes(event.target.value)}
                 type="number"
                 min={1}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                className="app-input"
                 placeholder="60"
               />
             </div>
@@ -442,11 +519,11 @@ export function ExerciseListEditor({
                 value={dueAt}
                 onChange={(event) => setDueAt(event.target.value)}
                 type="datetime-local"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                className="app-input"
               />
             </div>
 
-            <label className="flex items-center gap-3 rounded-md border border-slate-200 px-3 py-3">
+            <label className="app-panel flex items-center gap-3 px-3 py-3">
               <input
                 checked={publish}
                 onChange={(event) => setPublish(event.target.checked)}
@@ -462,7 +539,7 @@ export function ExerciseListEditor({
       ) : null}
 
       {activeTab === "questions" ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="app-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Questions</h2>
@@ -471,53 +548,33 @@ export function ExerciseListEditor({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Tooltip content="Add a multiple choice question">
-              <button
-                type="button"
-                onClick={() => addQuestion(QuestionType.MULTIPLE_CHOICE)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:border-slate-900"
-              >
-                Add MCQ
-              </button>
-            </Tooltip>
-            <Tooltip content="Add an essay question">
-              <button
-                type="button"
-                onClick={() => addQuestion(QuestionType.ESSAY)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:border-slate-900"
-              >
-                Add essay
-              </button>
-            </Tooltip>
-            <Tooltip content="Add a fill in the blank question">
-              <button
-                type="button"
-                onClick={() => addQuestion(QuestionType.FILL_IN_THE_BLANK)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:border-slate-900"
-              >
-                Add fill blank
-              </button>
-            </Tooltip>
-            <Tooltip content="Add a matching question">
-              <button
-                type="button"
-                onClick={() => addQuestion(QuestionType.MATCHING)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:border-slate-900"
-              >
-                Add matching
-              </button>
-            </Tooltip>
-          </div>
+          <Tooltip content="Add a new question">
+            <button
+              type="button"
+              onClick={openAddQuestionModal}
+              className="app-button-secondary px-3 py-1.5 text-xs"
+            >
+              Add question
+            </button>
+          </Tooltip>
         </div>
 
         <div className="mt-8 space-y-6">
+          {questions.length === 0 ? (
+            <div className="app-empty-state px-6 py-10 text-center">
+              <p className="text-sm font-medium text-slate-700">No questions yet.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Use the button above to create the first question.
+              </p>
+            </div>
+          ) : null}
+
           {questions.map((question, index) => (
             <article
               key={question.id ?? `${question.type}-${index}`}
-              className="overflow-hidden rounded-md border border-slate-200"
+              className="app-card overflow-hidden rounded-xl"
             >
-              <div className="flex items-start gap-3 bg-slate-100 p-4">
+              <div className="app-card-header flex items-start gap-3 p-4">
                 <button
                   type="button"
                   onClick={() => toggleQuestionPanel(index)}
@@ -528,16 +585,16 @@ export function ExerciseListEditor({
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
                         Question {index + 1}
                       </p>
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                      <span className="app-badge">
                         {questionTypeLabels[question.type]}
                       </span>
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                      <span className="app-badge app-badge-info">
                         {question.points} {question.points === 1 ? "point" : "points"}
                       </span>
                     </div>
 
                     <p className="mt-2 truncate text-sm font-medium text-slate-800">
-                      {question.prompt.trim() || "Untitled question"}
+                      {getRichTextPreview(question.prompt) || "Untitled question"}
                     </p>
                   </div>
 
@@ -555,7 +612,7 @@ export function ExerciseListEditor({
                       onClick={() => moveQuestion(index, "up")}
                       disabled={index === 0}
                       aria-label="Move this question up"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="app-icon-button h-8 w-8"
                     >
                       <span className="h-4 w-4">
                         <ArrowUpIcon />
@@ -569,7 +626,7 @@ export function ExerciseListEditor({
                       onClick={() => moveQuestion(index, "down")}
                       disabled={index === questions.length - 1}
                       aria-label="Move this question down"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="app-icon-button h-8 w-8"
                     >
                       <span className="h-4 w-4">
                         <ArrowDownIcon />
@@ -583,7 +640,7 @@ export function ExerciseListEditor({
                       onClick={() => removeQuestion(index)}
                       disabled={questions.length === 1}
                       aria-label="Remove this question"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 text-rose-700 transition hover:border-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="app-button-danger h-8 w-8"
                     >
                       <span className="h-4 w-4">
                         <TrashIcon />
@@ -594,62 +651,64 @@ export function ExerciseListEditor({
               </div>
 
               {openQuestionIndex === index ? (
-                <div className="border-t border-slate-200 p-4">
-                  <div className="grid gap-3 lg:grid-cols-[180px,120px,minmax(0,1fr)]">
-                    <div>
-                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Type
-                      </label>
-                      <select
-                        value={question.type}
-                        onChange={(event) =>
-                          changeQuestionType(index, event.target.value as QuestionType)
-                        }
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                      >
-                        <option value={QuestionType.MULTIPLE_CHOICE}>Multiple choice</option>
-                        <option value={QuestionType.ESSAY}>Essay</option>
-                        <option value={QuestionType.FILL_IN_THE_BLANK}>
-                          Fill in the blank
-                        </option>
-                        <option value={QuestionType.MATCHING}>Matching</option>
-                      </select>
-                    </div>
+                <div className="border-t border-[var(--border)] p-4">
+                  <div className="grid gap-4 md:grid-cols-[240px,minmax(0,1fr)]">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Type
+                        </label>
+                        <select
+                          value={question.type}
+                          onChange={(event) =>
+                            changeQuestionType(index, event.target.value as QuestionType)
+                          }
+                          className="app-select"
+                        >
+                          <option value={QuestionType.MULTIPLE_CHOICE}>Multiple choice</option>
+                          <option value={QuestionType.ESSAY}>Essay</option>
+                          <option value={QuestionType.FILL_IN_THE_BLANK}>
+                            Fill in the blank
+                          </option>
+                          <option value={QuestionType.MATCHING}>Matching</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Points
-                      </label>
-                      <input
-                        value={question.points}
-                        onChange={(event) =>
-                          updateQuestion(index, {
-                            ...question,
-                            points: Number(event.target.value || 1),
-                          })
-                        }
-                        type="number"
-                        min={0.5}
-                        step={0.5}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                        placeholder="1"
-                      />
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Point
+                        </label>
+                        <input
+                          value={question.points}
+                          onChange={(event) =>
+                            updateQuestion(index, {
+                              ...question,
+                              points: Number(event.target.value || 1),
+                            })
+                          }
+                          type="number"
+                          min={0.5}
+                          step={0.5}
+                          className="app-input"
+                          placeholder="1"
+                        />
+                      </div>
                     </div>
 
                     <div>
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Prompt
                       </label>
-                      <input
+                      <RichTextEditor
                         value={question.prompt}
-                        onChange={(event) =>
+                        onChange={(prompt) =>
                           updateQuestion(index, {
                             ...question,
-                            prompt: event.target.value,
+                            prompt,
                           })
                         }
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                        placeholder="Question prompt"
+                        placeholder="Write the question prompt"
+                        minHeightClassName="min-h-40"
                       />
                     </div>
                   </div>
@@ -688,11 +747,99 @@ export function ExerciseListEditor({
             </article>
           ))}
         </div>
+
+        <Modal
+          open={isQuestionModalOpen}
+          title="Add question"
+          onClose={closeAddQuestionModal}
+        >
+          <div className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-[220px,minmax(0,1fr)]">
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Type
+                  </label>
+                  <select
+                    value={newQuestionDraft.type}
+                    onChange={(event) =>
+                      setNewQuestionDraft((currentDraft) => ({
+                        ...currentDraft,
+                        type: event.target.value as QuestionType,
+                      }))
+                    }
+                    className="app-select"
+                  >
+                    <option value={QuestionType.MULTIPLE_CHOICE}>Multiple choice</option>
+                    <option value={QuestionType.ESSAY}>Essay</option>
+                    <option value={QuestionType.FILL_IN_THE_BLANK}>Fill in the blank</option>
+                    <option value={QuestionType.MATCHING}>Matching</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Point
+                  </label>
+                  <input
+                    value={newQuestionDraft.points}
+                    onChange={(event) =>
+                      setNewQuestionDraft((currentDraft) => ({
+                        ...currentDraft,
+                        points: Number(event.target.value || 1),
+                      }))
+                    }
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    className="app-input"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Prompt
+                </label>
+                <RichTextEditor
+                  value={newQuestionDraft.prompt}
+                  onChange={(prompt) =>
+                    setNewQuestionDraft((currentDraft) => ({
+                      ...currentDraft,
+                      prompt,
+                    }))
+                  }
+                  placeholder="Write the question prompt"
+                  minHeightClassName="min-h-40"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeAddQuestionModal}
+                className="app-button-secondary px-3 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => addQuestion(newQuestionDraft)}
+                disabled={isRichTextEmpty(newQuestionDraft.prompt)}
+                className="app-button-primary px-3 py-2"
+              >
+                Add question
+              </button>
+            </div>
+          </div>
+        </Modal>
         </section>
       ) : null}
 
       {activeTab === "assignments" ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="app-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Assign to students</h2>
@@ -701,29 +848,63 @@ export function ExerciseListEditor({
             </p>
           </div>
 
-          <div className="rounded-md bg-slate-100 px-3 py-1.5 text-xs text-slate-700">
+          <div className="app-badge app-badge-info">
             {assignedStudents.length} selected
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2">
-          {students.map((student) => (
-            <label
-              key={student.id}
-              className="flex items-start gap-3 rounded-md border border-slate-200 px-3 py-3"
-            >
-              <input
-                checked={selectedStudentIds.includes(student.id)}
-                onChange={() => toggleStudent(student.id)}
-                type="checkbox"
-                className="mt-1 h-4 w-4 rounded border-slate-300"
-              />
-              <span className="text-sm">
-                <span className="block font-medium text-slate-800">{student.name}</span>
-                <span className="block text-slate-500">{student.email}</span>
-              </span>
+        <div className="mt-6 space-y-4">
+          <div className="max-w-md">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Filter students
             </label>
-          ))}
+            <input
+              value={studentFilter}
+              onChange={(event) => setStudentFilter(event.target.value)}
+              className="app-input"
+              placeholder="Search by name or email"
+            />
+          </div>
+
+          <div className="app-card overflow-x-auto rounded-xl">
+            <table className="app-table">
+              <thead>
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3 text-center">Assign</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.length > 0 ? (
+                  filteredStudents.map((student) => (
+                    <tr key={student.id}>
+                      <td className="px-4 py-3 font-medium text-slate-800">{student.name}</td>
+                      <td className="px-4 py-3 text-slate-600">{student.email}</td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          checked={selectedStudentIds.includes(student.id)}
+                          onChange={() => toggleStudent(student.id)}
+                          type="checkbox"
+                          aria-label={`Assign exam to ${student.name}`}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-4 py-6 text-center text-sm text-slate-500"
+                    >
+                      No students found for the current filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
         </section>
       ) : null}
@@ -735,7 +916,7 @@ export function ExerciseListEditor({
               type="button"
               onClick={handleDelete}
               disabled={isPending}
-              className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-button-danger px-3 py-2"
             >
               Delete exam
             </button>
@@ -748,7 +929,7 @@ export function ExerciseListEditor({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="app-button-primary px-4 py-2"
           >
             {isPending
               ? "Saving..."

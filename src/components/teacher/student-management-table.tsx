@@ -149,9 +149,9 @@ export function StudentManagementTable({
         <IconButton label="New student" icon={<PlusIcon />} onClick={openCreateModal} />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <div className="app-card overflow-hidden">
+        <table className="app-table">
+          <thead>
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
@@ -160,7 +160,7 @@ export function StudentManagementTable({
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
@@ -215,7 +215,7 @@ export function StudentManagementTable({
                   name: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               required
             />
           </div>
@@ -233,7 +233,7 @@ export function StudentManagementTable({
                 }))
               }
               type="email"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               required
             />
           </div>
@@ -251,7 +251,7 @@ export function StudentManagementTable({
                 }))
               }
               type="password"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               placeholder={editingStudentId ? "Leave blank to keep current password" : ""}
               required={!editingStudentId}
             />
@@ -261,14 +261,14 @@ export function StudentManagementTable({
             <button
               type="button"
               onClick={closeModal}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:border-slate-900 hover:text-slate-900"
+              className="app-button-secondary px-3 py-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+              className="app-button-primary px-3 py-2"
             >
               {isSaving ? "Saving..." : "Save"}
             </button>

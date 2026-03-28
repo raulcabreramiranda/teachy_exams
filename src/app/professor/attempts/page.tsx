@@ -8,8 +8,8 @@ export default async function TeacherAttemptsPage() {
   const attempts = await getTeacherAttemptsForReview(session.userId);
 
   return (
-    <div className="space-y-3">
-      <div>
+    <div className="space-y-5">
+      <div className="app-page-header p-5">
         <h2 className="text-2xl font-semibold">Attempts</h2>
         <p className="mt-1 text-sm text-slate-600">
           Review pending submissions and revisit attempts that were already graded.

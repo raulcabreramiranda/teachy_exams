@@ -92,7 +92,7 @@ export function MatchingQuestionEditor({
             <button
               type="button"
               onClick={addLeftItem}
-              className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
+              className="app-button-secondary border-dashed px-3 py-1.5 text-xs"
             >
               Add left item
             </button>
@@ -102,12 +102,12 @@ export function MatchingQuestionEditor({
         {question.config.leftItems.map((item, index) => (
           <div
             key={item.id}
-            className="rounded-md border border-slate-200 p-3"
+            className="app-panel p-3"
           >
             <input
               value={item.label}
               onChange={(event) => updateLeftLabel(index, event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               placeholder={`Left item ${index + 1}`}
             />
 
@@ -118,7 +118,7 @@ export function MatchingQuestionEditor({
               <select
                 value={question.config.correctMatches[item.id] ?? ""}
                 onChange={(event) => updateCorrectMatch(item.id, event.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                className="app-select"
               >
                 {question.config.rightItems.map((rightItem) => (
                   <option key={rightItem.id} value={rightItem.id}>
@@ -138,7 +138,7 @@ export function MatchingQuestionEditor({
             <button
               type="button"
               onClick={addRightItem}
-              className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900"
+              className="app-button-secondary border-dashed px-3 py-1.5 text-xs"
             >
               Add right item
             </button>
@@ -148,12 +148,12 @@ export function MatchingQuestionEditor({
         {question.config.rightItems.map((item, index) => (
           <div
             key={item.id}
-            className="rounded-md border border-slate-200 p-3"
+            className="app-panel p-3"
           >
             <input
               value={item.label}
               onChange={(event) => updateRightLabel(index, event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               placeholder={`Right item ${index + 1}`}
             />
           </div>

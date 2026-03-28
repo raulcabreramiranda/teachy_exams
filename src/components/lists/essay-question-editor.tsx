@@ -27,7 +27,7 @@ export function EssayQuestionEditor({
           })
         }
         rows={3}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+        className="app-textarea"
         placeholder="Add an optional placeholder for the student answer."
       />
     </div>

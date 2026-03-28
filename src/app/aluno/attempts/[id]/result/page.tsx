@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { QuestionType, Role } from "@prisma/client";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { formatDateTime, formatScore } from "@/lib/format";
 import { requirePageSession } from "@/lib/auth";
 import { getAttemptResult } from "@/services/attempt-service";
@@ -78,13 +79,13 @@ export default async function StudentAttemptResultPage({
       <div>
         <Link
           href="/aluno"
-          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+          className="app-button-secondary px-3 py-2"
         >
           Back to dashboard
         </Link>
       </div>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]">
+      <section className="app-card rounded-3xl p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
@@ -96,14 +97,14 @@ export default async function StudentAttemptResultPage({
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+          <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
             <p>Status: {attempt.status}</p>
             <p>Total score: {formatScore(attempt.totalScore)}</p>
             <p>Due date: {formatDateTime(attempt.assignment.list.dueAt)}</p>
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+        <div className="app-panel mt-6 rounded-2xl px-4 py-4 text-sm text-slate-700">
           <p className="font-semibold text-slate-900">Overall feedback</p>
           <p className="mt-2">
             {attempt.teacherFeedback || "No overall feedback has been added yet."}
@@ -115,17 +116,20 @@ export default async function StudentAttemptResultPage({
         {attempt.answers.map((answer) => (
           <article
             key={answer.id}
-            className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_30px_70px_-50px_rgba(15,23,42,0.45)]"
+            className="app-card rounded-3xl p-8"
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
                   {answer.question.type.replaceAll("_", " ")}
                 </p>
-                <h3 className="mt-2 text-lg font-semibold">{answer.question.prompt}</h3>
+                <RichTextContent
+                  html={answer.question.prompt}
+                  className="mt-2 text-lg font-semibold text-slate-900"
+                />
               </div>
 
-              <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+              <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
                 <p>Auto score: {formatScore(answer.autoScore)}</p>
                 <p>Manual score: {formatScore(answer.manualScore)}</p>
                 <p>
@@ -135,7 +139,7 @@ export default async function StudentAttemptResultPage({
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="app-panel mt-4 rounded-2xl p-5">
               {renderAnswer(
                 answer.question.type,
                 answer.question.configJson,
@@ -143,7 +147,7 @@ export default async function StudentAttemptResultPage({
               )}
             </div>
 
-            <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-700">
+            <div className="app-panel mt-4 rounded-2xl px-4 py-4 text-sm text-slate-700">
               <p className="font-semibold text-slate-900">Feedback</p>
               <p className="mt-2">
                 {answer.feedback ||

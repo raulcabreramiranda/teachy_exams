@@ -83,53 +83,61 @@ export function MultipleChoiceQuestionEditor({
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {question.config.options.map((option, index) => (
-          <div
-            key={option.id}
-            className="flex min-h-32 flex-col gap-3 rounded-md border border-slate-200 p-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={question.config.correctOptionIds.includes(option.id)}
-                  onChange={() => toggleCorrectOption(option.id)}
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                Correct
-              </label>
-
-              <Tooltip content="Remove this option">
-                <button
-                  type="button"
-                  onClick={() => removeOption(index)}
-                  disabled={question.config.options.length <= 2}
-                  aria-label="Remove this option"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-700 transition hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="h-4 w-4">
-                    <TrashIcon />
-                  </span>
-                </button>
-              </Tooltip>
-            </div>
-
-            <input
-              value={option.text}
-              onChange={(event) => updateOption(index, event.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-              placeholder={`Option ${index + 1}`}
-            />
-          </div>
-        ))}
+      <div className="app-card overflow-x-auto rounded-xl">
+        <table className="app-table">
+          <thead>
+            <tr>
+              <th className="px-4 py-3">✅</th>
+              <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3 text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {question.config.options.map((option, index) => (
+              <tr key={option.id}>
+                <td className="px-4 py-3 align-middle">
+                  <input
+                    type="checkbox"
+                    checked={question.config.correctOptionIds.includes(option.id)}
+                    onChange={() => toggleCorrectOption(option.id)}
+                    className="h-4 w-4 rounded border-slate-300"
+                    aria-label={`Mark option ${index + 1} as correct`}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    value={option.text}
+                    onChange={(event) => updateOption(index, event.target.value)}
+                    className="app-input"
+                    placeholder={`Option ${index + 1}`}
+                  />
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Tooltip content="Remove this option">
+                    <button
+                      type="button"
+                      onClick={() => removeOption(index)}
+                      disabled={question.config.options.length <= 2}
+                      aria-label="Remove this option"
+                      className="app-icon-button h-8 w-8"
+                    >
+                      <span className="h-4 w-4">
+                        <TrashIcon />
+                      </span>
+                    </button>
+                  </Tooltip>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <Tooltip content="Add another answer option">
         <button
           type="button"
           onClick={addOption}
-          className="rounded-md border border-dashed border-slate-400 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+          className="app-button-secondary border-dashed px-3 py-1.5 text-xs"
         >
           Add option
         </button>

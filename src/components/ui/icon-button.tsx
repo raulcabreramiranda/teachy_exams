@@ -12,10 +12,8 @@ type IconButtonProps = {
 };
 
 const variantClassNames = {
-  default:
-    "border-slate-300 bg-white text-slate-600 hover:border-slate-900 hover:text-slate-900",
-  danger:
-    "border-rose-200 bg-white text-rose-600 hover:border-rose-500 hover:text-rose-700",
+  default: "app-icon-button",
+  danger: "app-button-danger",
 };
 
 export function IconButton({
@@ -27,7 +25,7 @@ export function IconButton({
   disabled,
   type = "button",
 }: IconButtonProps) {
-  const className = `inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${variantClassNames[variant]}`;
+  const className = `h-8 w-8 text-sm ${variantClassNames[variant]}`;
 
   if (href) {
     return (

@@ -53,7 +53,7 @@ export function FillInTheBlankQuestionEditor({
           value={question.config.template}
           onChange={(event) => syncAnswers(event.target.value)}
           rows={4}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          className="app-textarea"
           placeholder="Use {{blank}} wherever students should type an answer."
         />
         <p className="mt-2 text-xs text-slate-500">
@@ -70,7 +70,7 @@ export function FillInTheBlankQuestionEditor({
             <input
               value={answer}
               onChange={(event) => updateAnswer(index, event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              className="app-input"
               placeholder={`Expected answer for blank ${index + 1}`}
             />
           </div>

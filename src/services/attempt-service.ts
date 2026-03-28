@@ -589,7 +589,10 @@ export async function gradeEssayAnswers(
       throw new AppError("One or more answers cannot be graded manually.", 400);
     }
 
-    if (answerInput.manualScore > answer.question.points) {
+    if (
+      answerInput.manualScore !== null &&
+      answerInput.manualScore > answer.question.points
+    ) {
       throw new AppError(
         `Manual score cannot exceed the question points (${answer.question.points}).`,
         422,
@@ -606,7 +609,7 @@ export async function gradeEssayAnswers(
         data: {
           manualScore: answerInput.manualScore,
           feedback: answerInput.feedback || null,
-          correctedAt: new Date(),
+          correctedAt: answerInput.manualScore === null ? null : new Date(),
         },
       }),
     ),
