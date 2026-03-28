@@ -1,84 +1,119 @@
-# Teachy Exercise Lists
+# Teachy Exams
 
-Full-stack exercise list manager built with Next.js App Router, TypeScript, Prisma, PostgreSQL, and Tailwind CSS.
+Full-stack exam platform built for the Teachy technical challenge with teacher and student flows, automatic and manual grading, multilingual UI, and AI-assisted question drafting.
 
-## Internationalization
+## Links
 
-The UI now uses `next-intl` with prefix-based locales:
+- Repository: `https://github.com/raulcabreramiranda/teachy_exams`
+- Live demo: `https://teachy-exams.vercel.app/`
+- Deploy your own copy on Vercel:
 
-- `/en` for English
-- `/pt` for Portuguese
-- `/es` for Spanish
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/raulcabreramiranda/teachy_exams)
+
+## Overview
+
+The project covers the complete exercise-list workflow requested in the challenge:
+
+- Teachers can create, edit, publish, assign, review, and analyze exams
+- Students can start attempts, save drafts, submit answers, and view results
+- Objective questions can be auto-graded
+- Subjective answers can be reviewed manually
+- The interface is available in English, Portuguese, and Spanish
+
+## Main Features
+
+### Teacher
+
+- Create, edit, delete, and publish exams
+- Add questions with these types:
+  - Multiple choice
+  - Essay
+  - Fill in the blank
+  - Matching
+- Define:
+  - points per question
+  - time limit in minutes
+  - due date
+  - whether objective-only exams should be auto-reviewed
+- Assign exams to one or more students
+- Manage students
+- Review pending submissions through a dedicated review queue
+- Inspect reviewed attempts separately
+- Reopen or move attempts back to review when needed
+- View exam results in a dedicated results tab
+- Generate draft questions with Gemini from the Questions tab
+
+### Student
+
+- View assigned exams with status filters
+- Start an attempt only while the exam is still available
+- See due date, time limit, and remaining time
+- Answer all supported question types
+- Save draft answers
+- Auto-save draft answers while navigating between questions
+- Submit the exam
+- View final score and teacher feedback after submission/review
+
+### AI Question Generator
+
+- Teachers can generate question drafts with `✨ Generate with AI`
+- Supported generated types:
+  - Multiple choice
+  - Essay
+  - Fill in the blank
+  - Matching
+- Teachers choose:
+  - question type
+  - difficulty
+  - output language
+  - points
+  - description
+- The generated question is previewed first
+- Nothing is persisted until the teacher clicks `Use this question` and saves the exam normally
+- Gemini requests and responses are logged in the database for traceability
+
+### Internationalization
+
+The UI uses `next-intl` with prefix-based routing:
+
+- `/en`
+- `/pt`
+- `/es`
 
 Routing rules:
 
 - `/` redirects to `/en`
 - UI pages live under `src/app/[locale]/...`
-- API routes stay unprefixed under `src/app/api/...`
-- Locale switching preserves the current page path and query string
-
-### Add a translation key
-
-1. Add the new key to:
-   - `src/messages/en.json`
-   - `src/messages/pt.json`
-   - `src/messages/es.json`
-2. Read the key in:
-   - server components with `getTranslations()`
-   - client components with `useTranslations()`
-
-### Add a new locale
-
-1. Add the locale code to `src/i18n/routing.ts`
-2. Create `src/messages/<locale>.json`
-3. Add the locale label to the language switcher messages
-4. If needed, update locale-specific fallback labels in `src/lib/format.ts`
-
-## Features
-
-- Teacher flow
-  - Create, update, delete, and publish exercise lists
-  - Create and edit questions for all required types
-  - Generate draft questions with Gemini and review them before saving
-  - Assign lists to existing students
-  - Review submitted attempts
-  - Grade essay answers manually and add feedback
-- Student flow
-  - Review assigned lists and attempt rules
-  - Start a timed attempt
-  - Save answers and submit the attempt
-  - View scores and feedback after submission
-- Supported question types
-  - Multiple choice with one or more correct answers
-  - Essay
-  - Fill in the blank
-  - Matching columns
-- Optional list rules
-  - `timeLimitMinutes`
-  - `dueAt`
+- API routes remain unprefixed under `src/app/api/...`
+- The language switcher preserves the current route
 
 ## Tech Stack
 
-- Next.js 15 with App Router
+- Next.js 15 App Router
 - TypeScript
+- React 19
+- Tailwind CSS 4
 - Prisma ORM
 - PostgreSQL
-- Tailwind CSS
-- Custom auth with signed JWT session cookie (`httpOnly`) and RBAC
-- Vitest for unit tests
+- Zod
+- `next-intl`
+- Vitest
+- Google Gemini via `@google/genai`
 
-## Auth Decision
+## Architecture Notes
 
-The project uses custom session auth instead of NextAuth.
+### Authentication
 
-Reasoning:
+The project uses custom credential authentication with a signed JWT session cookie.
 
-- The scope only needs credentials login plus RBAC for `TEACHER` and `STUDENT`.
-- A signed JWT in an `httpOnly` cookie keeps the implementation small and explicit.
-- Route handlers and server pages both consume the same session helpers.
-- No extra auth tables are required in Prisma.
+Why:
 
-## Prisma Model
+- only two roles are required: `TEACHER` and `STUDENT`
+- the auth flow stays explicit and small
+- the same session helpers are consumed by server pages and API routes
+- no extra auth tables are required
+
+### Data Model
 
 Main entities:
 
@@ -88,34 +123,30 @@ Main entities:
 - `Assignment`
 - `Attempt`
 - `Answer`
+- `AiQuestionGenerationLog`
 
-Important modeling decisions:
+Important decisions:
 
-- `Question.configJson` stores type-specific configuration.
-- `Answer.responseJson` stores the student response in a type-specific shape.
-- `Attempt.assignmentId` is unique, so each assignment has a single attempt.
-- `Answer` is unique by `attemptId + questionId`.
-- Float scores are used so teachers can assign partial manual credit when needed.
+- `Question.configJson` stores type-specific question configuration
+- `Answer.responseJson` stores type-specific student responses
+- `Attempt.assignmentId` is unique, so each assignment has a single attempt
+- `Answer` is unique by `attemptId + questionId`
+- manual scores use `Float`, allowing partial grading
+- AI request/response logs are stored in the database
 
-## Auto-grading Rules
+### Grading Rules
 
-- Multiple choice
-  - Compares the selected option set against the correct option set.
-  - Order does not matter.
-- Fill in the blank
-  - Compares blank-by-blank after `trim()` + `lowercase`.
-- Matching
-  - Compares each left item to its expected right item.
-- Essay
-  - No automatic score.
-  - Teacher sets `manualScore` and optional feedback later.
+- Multiple choice is graded by comparing the selected option set with the correct set
+- Fill in the blank is graded blank-by-blank after text normalization
+- Matching is graded by comparing each selected pair to the expected match
+- Essay has no automatic score
 
-Total attempt score:
+Final score behavior:
 
-- Objective questions use `autoScore`.
-- Essay questions use `manualScore`.
-- The attempt stays `SUBMITTED` while essay grading is pending.
-- The attempt becomes `GRADED` after all essay answers are manually corrected.
+- Essay questions use `manualScore`
+- Objective questions use `manualScore ?? autoScore`
+- If an exam has pending essay grading, the attempt remains `SUBMITTED`
+- If auto-review is disabled, objective-only exams also remain `SUBMITTED` until teacher review
 
 ## Project Structure
 
@@ -130,6 +161,8 @@ src/
     lists/
     student/
     teacher/
+    ui/
+  i18n/
   lib/
   services/
   validations/
@@ -137,7 +170,7 @@ prisma/
 tests/
 ```
 
-## Environment
+## Environment Variables
 
 Copy the example file:
 
@@ -145,7 +178,7 @@ Copy the example file:
 cp .env.example .env
 ```
 
-Required variables:
+Required environment variables:
 
 ```env
 POSTGRES_PRISMA_URL="postgres://..."
@@ -155,29 +188,24 @@ GEMINI_API_KEY="your-google-ai-studio-api-key"
 GEMINI_MODEL="gemini-2.5-flash"
 ```
 
-`GEMINI_API_KEY` is only required if you want to use the AI question generator.
-`GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
+Notes:
 
-## AI Question Generator
+- `GEMINI_API_KEY` is only required if you want the AI question generator
+- `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`
 
-Teachers can generate draft questions from the Questions tab with the `✨ Generate with AI` button.
+## Running Locally
 
-How it works:
+Required Node.js version:
 
-- The teacher chooses the question type, difficulty, output language, points, and a short description.
-- The app sends that request to `POST /api/ai/generate-question`.
-- The route calls Gemini with a strict JSON schema and validates the response with Zod.
-- The generated question is only inserted into the local editor after the teacher clicks `Use this question`.
-- Nothing is saved to the database until the teacher saves the exam normally.
+```bash
+20.9+
+```
 
-Limitations:
+If you use `nvm`, run:
 
-- Teachers must review AI-generated content before saving.
-- The generator can be inaccurate or incomplete.
-- The selected generator language controls the generated content; existing database content is not translated automatically.
-- Essay sample answers are shown in the preview for teacher reference and are not saved automatically by the current editor.
-
-## Running the Project
+```bash
+nvm use
+```
 
 Install dependencies:
 
@@ -209,11 +237,17 @@ Start the app:
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open:
 
-The app will redirect to `http://localhost:3000/en`.
+```text
+http://localhost:3000
+```
+
+The app redirects to `/en`.
 
 ## Seeded Accounts
+
+Local seed users:
 
 - Teacher
   - `teacher@teachy.test`
@@ -224,7 +258,7 @@ The app will redirect to `http://localhost:3000/en`.
   - `carol@teachy.test`
   - `password123`
 
-The seed also creates one published exercise list with all four question types and assigns it to both students.
+The seed creates published demo exams and student assignments for local testing.
 
 ## Available Scripts
 
@@ -238,23 +272,15 @@ The seed also creates one published exercise list with all four question types a
 - `npm run prisma:migrate`
 - `npm run prisma:seed`
 
-## Validation
-
-The following checks should pass before shipping:
-
-```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
 ## API Summary
 
-Teacher routes:
+### Auth
 
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
+
+### Teacher
+
 - `GET /api/teacher/lists`
 - `POST /api/teacher/lists`
 - `GET /api/teacher/lists/:id`
@@ -263,19 +289,91 @@ Teacher routes:
 - `POST /api/teacher/lists/:id/assignments`
 - `GET /api/teacher/attempts`
 - `POST /api/teacher/attempts/:id/grade`
+- `POST /api/teacher/attempts/:id/reopen`
+- `POST /api/teacher/attempts/:id/ungrade`
+- `GET /api/teacher/students`
+- `POST /api/teacher/students`
+- `PATCH /api/teacher/students/:id`
+- `DELETE /api/teacher/students/:id`
 
-Student routes:
+### Student
 
 - `POST /api/student/assignments/:id/start`
 - `PUT /api/student/attempts/:id/answers`
 - `POST /api/student/attempts/:id/submit`
 
-## Future Improvements
+### AI
 
-- Add integration and end-to-end tests
-- Add attempt audit trail and teacher action history
-- Add per-question manual override for objective answers
-- Add finer permission checks and middleware-based route gating
-- Improve list editing protections after assignment
-- Add richer UI feedback, pagination, and search
-- Add multiple attempts per assignment if the product rules change
+- `POST /api/ai/generate-question`
+
+## Automated Tests
+
+The project includes unit tests for core domain behavior:
+
+- grading rules and deadline helpers
+- reopened-attempt detection
+- AI question mapping helpers
+- AI service retry behavior when Gemini returns invalid JSON
+- create/submit/grade exam workflow simulation
+
+Run all tests:
+
+```bash
+npm test
+```
+
+Recommended verification before shipping:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+## Deploy Your Own Version on Vercel
+
+You can deploy your own copy from the public repository:
+
+1. Click the Vercel button at the top of this README
+2. Import the GitHub repository
+3. Configure a PostgreSQL database
+4. Add the required environment variables
+5. Run the app with Prisma migrations applied to your database
+
+If you want AI generation enabled in your deployment, also configure:
+
+- `GEMINI_API_KEY`
+- optional `GEMINI_MODEL`
+
+## Adding or Updating Translations
+
+To add a new translation key:
+
+1. Add the key to:
+   - `src/messages/en.json`
+   - `src/messages/pt.json`
+   - `src/messages/es.json`
+2. Read it with:
+   - `getTranslations()` in server components
+   - `useTranslations()` in client components
+
+To add a new locale:
+
+1. Add the locale to `src/i18n/routing.ts`
+2. Create `src/messages/<locale>.json`
+3. Update the language switcher labels
+4. Adjust formatting fallbacks in `src/lib/format.ts` if needed
+
+## Future Updates
+
+Some good next steps for future versions:
+
+- add end-to-end tests for teacher and student flows
+- add pagination and stronger filters for large exam datasets
+- add per-question analytics in the results tab
+- add optional rubrics for essay grading
+- add attempt audit history for teacher actions
+- add support for multiple attempts per assignment when product rules require it
+- add import/export for exams
+- add richer AI generation options such as topic tags and curriculum level
