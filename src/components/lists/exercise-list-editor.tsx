@@ -4,6 +4,10 @@ import { QuestionType } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EssayQuestionEditor } from "@/components/lists/essay-question-editor";
+import {
+  ExerciseListResults,
+  type ExerciseListResultItem,
+} from "@/components/lists/exercise-list-results";
 import { FillInTheBlankQuestionEditor } from "@/components/lists/fill-in-the-blank-question-editor";
 import { MatchingQuestionEditor } from "@/components/lists/matching-question-editor";
 import { MultipleChoiceQuestionEditor } from "@/components/lists/multiple-choice-question-editor";
@@ -28,11 +32,13 @@ type ExerciseListEditorProps = {
   initialValue?: {
     title: string;
     description: string;
+    autoReview: boolean;
     timeLimitMinutes: string;
     dueAt: string;
     publish: boolean;
     questions: QuestionInput[];
     selectedStudentIds: string[];
+    results: ExerciseListResultItem[];
   };
 };
 
@@ -40,7 +46,7 @@ type ExerciseListInitialValue = NonNullable<
   ExerciseListEditorProps["initialValue"]
 >;
 
-type EditorTab = "data" | "questions" | "assignments";
+type EditorTab = "data" | "questions" | "assignments" | "results";
 
 type QuestionDraft = {
   type: QuestionType;
@@ -127,11 +133,13 @@ function createDefaultQuestion(
 const emptyInitialValue: ExerciseListInitialValue = {
   title: "",
   description: "",
+  autoReview: true,
   timeLimitMinutes: "",
   dueAt: "",
   publish: false,
   questions: [],
   selectedStudentIds: [],
+  results: [],
 };
 
 const questionTypeLabels: Record<QuestionType, string> = {
@@ -141,7 +149,10 @@ const questionTypeLabels: Record<QuestionType, string> = {
   [QuestionType.MATCHING]: "Matching",
 };
 
-const editorTabs: Array<{ id: EditorTab; label: string }> = [
+const baseEditorTabs: Array<{
+  id: Exclude<EditorTab, "results">;
+  label: string;
+}> = [
   { id: "data", label: "Data" },
   { id: "questions", label: "Questions" },
   { id: "assignments", label: "Assign to students" },
@@ -157,6 +168,7 @@ export function ExerciseListEditor({
   const startingValue = initialValue ?? emptyInitialValue;
   const [title, setTitle] = useState(startingValue.title);
   const [description, setDescription] = useState(startingValue.description);
+  const [autoReview, setAutoReview] = useState(startingValue.autoReview);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(
     startingValue.timeLimitMinutes,
   );
@@ -198,6 +210,21 @@ export function ExerciseListEditor({
       return haystack.includes(normalizedFilter);
     });
   }, [studentFilter, students]);
+  const hasEssayQuestion = useMemo(
+    () => questions.some((question) => question.type === QuestionType.ESSAY),
+    [questions],
+  );
+  const totalExamPoints = useMemo(
+    () => questions.reduce((sum, question) => sum + question.points, 0),
+    [questions],
+  );
+  const editorTabs = useMemo<Array<{ id: EditorTab; label: string }>>(
+    () =>
+      mode === "edit"
+        ? [...baseEditorTabs, { id: "results", label: "Results" }]
+        : baseEditorTabs,
+    [mode],
+  );
 
   function normalizeQuestionOrder(nextQuestions: QuestionInput[]) {
     return nextQuestions.map((question, index) => ({
@@ -373,6 +400,7 @@ export function ExerciseListEditor({
     const payload = {
       title,
       description: description || null,
+      autoReview: hasEssayQuestion ? false : autoReview,
       timeLimitMinutes: timeLimitMinutes ? Number(timeLimitMinutes) : null,
       dueAt: dueAt ? new Date(dueAt).toISOString() : null,
       publish,
@@ -434,30 +462,42 @@ export function ExerciseListEditor({
     }
 
     setIsPending(false);
-    await showSuccessAlert({
+
+    const continueEditing = await showConfirmAlert({
       title: mode === "create" ? "Exam created" : "Exam updated",
       text:
-        mode === "create"
-          ? "The exam is ready."
-          : "Your changes were saved successfully.",
-      timer: 1000,
+        selectedStudentIds.length > 0
+          ? `The exam was saved and assigned to ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? "" : "s"}.`
+          : mode === "create"
+            ? "The exam was created successfully."
+            : "Your changes were saved successfully.",
+      icon: "success",
+      confirmButtonText: "Continue editing",
+      cancelButtonText: "Go to list",
     });
 
-    router.push(`/professor/lists/${listBody.id}/edit`);
+    router.push(
+      continueEditing
+        ? `/professor/lists/${listBody.id}/edit`
+        : "/professor/lists",
+    );
     router.refresh();
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-0">
+      <div className="app-tab-list" role="tablist" aria-label="Exam editor sections">
         {editorTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`app-toggle-button px-3 py-2 ${
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`app-tab ${
               activeTab === tab.id
-                ? "app-toggle-button-active"
+                ? "app-tab-active"
                 : ""
             }`}
           >
@@ -467,7 +507,7 @@ export function ExerciseListEditor({
       </div>
 
       {activeTab === "data" ? (
-        <section className="app-card grid gap-4 p-4 lg:grid-cols-2">
+        <section className="app-card rounded-t-none border-t-0 grid gap-4 p-4 lg:grid-cols-2">
           <div className="space-y-5">
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -534,12 +574,36 @@ export function ExerciseListEditor({
                 Publish this exam after saving
               </span>
             </label>
+
+            <label
+              className={`app-panel flex items-start gap-3 px-3 py-3 ${
+                hasEssayQuestion ? "opacity-80" : ""
+              }`}
+            >
+              <input
+                checked={hasEssayQuestion ? false : autoReview}
+                onChange={(event) => setAutoReview(event.target.checked)}
+                type="checkbox"
+                disabled={hasEssayQuestion}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium text-slate-700">
+                  Auto review objective-only exams
+                </span>
+                <span className="block text-xs text-slate-500">
+                  {hasEssayQuestion
+                    ? "Essay questions always require teacher review."
+                    : "When disabled, student submissions stay pending until a teacher reviews them."}
+                </span>
+              </span>
+            </label>
           </div>
         </section>
       ) : null}
 
       {activeTab === "questions" ? (
-        <section className="app-card p-4">
+        <section className="app-card rounded-t-none border-t-0 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Questions</h2>
@@ -652,8 +716,8 @@ export function ExerciseListEditor({
 
               {openQuestionIndex === index ? (
                 <div className="border-t border-[var(--border)] p-4">
-                  <div className="grid gap-4 md:grid-cols-[240px,minmax(0,1fr)]">
-                    <div className="space-y-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                    <div className="flex flex-col gap-4 lg:w-60 lg:flex-none">
                       <div>
                         <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           Type
@@ -695,7 +759,7 @@ export function ExerciseListEditor({
                       </div>
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Prompt
                       </label>
@@ -754,8 +818,8 @@ export function ExerciseListEditor({
           onClose={closeAddQuestionModal}
         >
           <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-[220px,minmax(0,1fr)]">
-              <div className="space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <div className="flex flex-col gap-4 lg:w-56 lg:flex-none">
                 <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Type
@@ -798,7 +862,7 @@ export function ExerciseListEditor({
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0 flex-1">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Prompt
                 </label>
@@ -839,7 +903,7 @@ export function ExerciseListEditor({
       ) : null}
 
       {activeTab === "assignments" ? (
-        <section className="app-card p-4">
+        <section className="app-card rounded-t-none border-t-0 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Assign to students</h2>
@@ -908,6 +972,16 @@ export function ExerciseListEditor({
         </div>
         </section>
       ) : null}
+
+      {activeTab === "results" ? (
+        <section className="app-card rounded-t-none border-t-0 p-4">
+          <ExerciseListResults
+            results={startingValue.results}
+            totalPoints={totalExamPoints}
+          />
+        </section>
+      ) : null}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {mode === "edit" ? (

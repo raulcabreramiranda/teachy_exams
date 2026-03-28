@@ -41,6 +41,8 @@ type AssignmentWorkspaceProps = {
   };
 };
 
+type PendingAction = "start" | "save" | "submit" | "previous" | "next" | null;
+
 function splitTemplate(template: string) {
   return template.split("{{blank}}");
 }
@@ -84,7 +86,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
   const isReopenedByTeacher = attempt
     ? isTeacherReopenedAttempt(attempt.status, attempt.submittedAt)
     : false;
-  const [isPending, setIsPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [hasRequestedExpiredRefresh, setHasRequestedExpiredRefresh] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [tick, setTick] = useState(Date.now());
@@ -145,6 +147,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
   const isExpired = remainingMilliseconds !== null && remainingMilliseconds <= 0;
   const currentQuestion = assignment.list.questions[currentQuestionIndex] ?? null;
+  const isPending = pendingAction !== null;
 
   useEffect(() => {
     if (
@@ -190,7 +193,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
       return;
     }
 
-    setIsPending(true);
+    setPendingAction("start");
 
     const response = await fetch(`/api/student/assignments/${assignment.id}/start`, {
       method: "POST",
@@ -200,7 +203,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
       | { id?: string; message?: string }
       | null;
 
-    setIsPending(false);
+    setPendingAction(null);
 
     if (!response.ok) {
       await showErrorAlert({
@@ -223,16 +226,18 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     options?: {
       silent?: boolean;
       refresh?: boolean;
+      action?: Exclude<PendingAction, "start" | null>;
     },
   ) {
-    if (!attempt) {
+    if (!attempt || pendingAction !== null) {
       return false;
     }
 
     const silent = options?.silent ?? false;
     const shouldRefresh = options?.refresh ?? mode === "submit";
+    const action = options?.action ?? mode;
 
-    setIsPending(true);
+    setPendingAction(action);
 
     const payload = {
       answers: assignment.list.questions.map((question) => ({
@@ -258,7 +263,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
       | { id?: string; message?: string }
       | null;
 
-    setIsPending(false);
+    setPendingAction(null);
 
     if (!response.ok) {
       if (!silent) {
@@ -337,6 +342,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     const saved = await persistAnswers("save", {
       silent: true,
       refresh: false,
+      action: direction,
     });
 
     if (!saved) {
@@ -387,7 +393,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               disabled={isPending || (dueDate !== null && dueDate.getTime() < Date.now())}
               className="app-button-primary rounded-full px-6 py-3"
             >
-              {isPending ? "Starting..." : "Start exam"}
+              {pendingAction === "start" ? "Starting..." : "Start exam"}
             </button>
             {dueDate !== null && dueDate.getTime() < Date.now() ? (
               <p className="text-sm text-rose-700">
@@ -459,6 +465,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(option.id)}
+                          disabled={isPending}
                           onChange={(event) =>
                             setAnswers((currentAnswers) => {
                               const nextSelectedIds = event.target.checked
@@ -485,6 +492,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               {currentQuestion.type === QuestionType.ESSAY ? (
                 <textarea
                   value={(answers[currentQuestion.id] as { text?: string })?.text ?? ""}
+                  disabled={isPending}
                   onChange={(event) =>
                     setAnswers((currentAnswers) => ({
                       ...currentAnswers,
@@ -517,6 +525,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                               value={
                                 (answers[currentQuestion.id] as { blanks?: string[] })?.blanks?.[index] ?? ""
                               }
+                              disabled={isPending}
                               onChange={(event) =>
                                 setAnswers((currentAnswers) => {
                                   const currentBlanks =
@@ -567,6 +576,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                         </p>
                         <select
                           value={currentPairs[leftItem.id] ?? ""}
+                          disabled={isPending}
                           onChange={(event) =>
                             setAnswers((currentAnswers) => {
                               const currentResponse =
@@ -610,7 +620,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || currentQuestionIndex === 0}
                 className="app-button-secondary rounded-full px-4 py-2"
               >
-                Previous
+                {pendingAction === "previous" ? "Previous..." : "Previous"}
               </button>
               <button
                 type="button"
@@ -620,7 +630,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 }
                 className="app-button-secondary rounded-full px-4 py-2"
               >
-                Next
+                {pendingAction === "next" ? "Next..." : "Next"}
               </button>
               <span className="text-sm text-slate-500">
                 Question {currentQuestionIndex + 1} of {assignment.list.questions.length}
@@ -634,7 +644,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || isExpired}
                 className="app-button-secondary rounded-full px-6 py-3"
               >
-                {isPending ? "Saving..." : "Save draft"}
+                {pendingAction === "save" ? "Saving..." : "Save draft"}
               </button>
               <button
                 type="button"
@@ -642,7 +652,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || isExpired}
                 className="app-button-primary rounded-full px-6 py-3"
               >
-                {isPending ? "Submitting..." : "Submit exam"}
+                {pendingAction === "submit" ? "Submitting..." : "Submit exam"}
               </button>
             </div>
           </div>

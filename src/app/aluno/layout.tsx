@@ -7,14 +7,15 @@ export default async function StudentLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  await requirePageSession([Role.STUDENT]);
+  const session = await requirePageSession([Role.STUDENT]);
 
   return (
     <DashboardShell
-      title="Student"
+      title={session.name}
       subtitle="Review exams and results."
       navItems={[{ href: "/aluno", label: "Exams" }]}
       showSidebar={false}
+      centerHeaderContent
     >
       {children}
     </DashboardShell>

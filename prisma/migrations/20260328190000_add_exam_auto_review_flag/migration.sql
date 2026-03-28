@@ -1,0 +1,2 @@
+ALTER TABLE "ExerciseList"
+ADD COLUMN "autoReviewEnabled" BOOLEAN NOT NULL DEFAULT TRUE;

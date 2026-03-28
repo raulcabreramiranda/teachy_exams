@@ -92,41 +92,44 @@ export function ScoreStepper({
   }
 
   return (
-    <div className="space-y-2">
+    <div>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => handleAdjust(-step)}
           disabled={disabled}
           aria-label="Decrease score"
-          className="app-button-secondary h-10 w-10 text-lg"
+          className="app-button-secondary h-9 w-9 text-base"
         >
           -
         </button>
 
-        <input
-          value={inputValue}
-          onChange={(event) => handleInputChange(event.target.value)}
-          onBlur={handleBlur}
-          disabled={disabled}
-          inputMode="decimal"
-          aria-label="Manual score"
-          className="app-input w-24 text-center disabled:cursor-not-allowed disabled:opacity-60"
-          placeholder="--"
-        />
+        <div className="relative w-28">
+          <input
+            value={inputValue}
+            onChange={(event) => handleInputChange(event.target.value)}
+            onBlur={handleBlur}
+            disabled={disabled}
+            inputMode="decimal"
+            aria-label="Manual score"
+            className="app-input w-full pr-9 text-right disabled:cursor-not-allowed disabled:opacity-60"
+            placeholder="--"
+          />
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-medium text-slate-500">
+            / {formatNumber(max)}
+          </span>
+        </div>
 
         <button
           type="button"
           onClick={() => handleAdjust(step)}
           disabled={disabled}
           aria-label="Increase score"
-          className="app-button-secondary h-10 w-10 text-lg"
+          className="app-button-secondary h-9 w-9 text-base"
         >
           +
         </button>
       </div>
-
-      <p className="text-xs text-slate-500">Max: {formatNumber(max)}</p>
     </div>
   );
 }

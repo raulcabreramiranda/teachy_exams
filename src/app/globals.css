@@ -24,6 +24,8 @@
   --info-bg: #eef4ff;
   --info-border: #cad7fb;
   --info-text: #2747a2;
+  --stripe-even: rgba(226, 232, 240, 0.32);
+  --stripe-hover: rgba(255, 255, 255, 0.68);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
   --shadow-md: 0 18px 38px -30px rgba(15, 23, 42, 0.4);
 }
@@ -254,6 +256,48 @@ input[type="radio"] {
     opacity: 0.6;
   }
 
+  .app-tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-strong);
+    margin-bottom: -1px;
+    padding: 0 0.25rem;
+  }
+
+  .app-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 0.95rem 0.95rem 0 0;
+    background: rgb(var(--primary-rgb) / 0.1);
+    padding: 0.75rem 1.15rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #52607a;
+  }
+
+  .app-tab:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.8);
+    color: var(--primary);
+  }
+
+  .app-tab-active {
+    z-index: 1;
+    border-color: var(--border-strong);
+    background: rgb(255 255 255 / 0.96);
+    color: var(--foreground);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .app-tab:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
   .app-table {
     min-width: 100%;
     border-collapse: separate;
@@ -286,12 +330,24 @@ input[type="radio"] {
     border-top: 1px solid var(--border);
   }
 
+  .app-table tbody tr:nth-child(even) {
+    background: var(--stripe-even);
+  }
+
   .app-table tbody tr:hover {
-    background: rgb(255 255 255 / 0.48);
+    background: var(--stripe-hover);
   }
 
   .app-table-row-selected {
     background: #edf3ff !important;
+  }
+
+  .app-striped-list > *:nth-child(even) {
+    background: var(--stripe-even);
+  }
+
+  .app-striped-list > *:hover {
+    background: var(--stripe-hover);
   }
 
   .app-shell-sidebar,

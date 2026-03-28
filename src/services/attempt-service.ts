@@ -34,7 +34,7 @@ type AttemptWithListQuestionsAndAnswers = Prisma.AttemptGetPayload<{
   };
 }>;
 
-function getAttemptCompletionStatus(
+function getTeacherReviewStatus(
   answers: Array<{
     autoScore: number | null;
     manualScore: number | null;
@@ -46,6 +46,23 @@ function getAttemptCompletionStatus(
   return hasPendingEssayReview(answers)
     ? AttemptStatus.SUBMITTED
     : AttemptStatus.GRADED;
+}
+
+function getStudentSubmissionStatus(
+  answers: Array<{
+    autoScore: number | null;
+    manualScore: number | null;
+    question: {
+      type: QuestionType;
+    };
+  }>,
+  autoReviewEnabled: boolean,
+) {
+  if (hasPendingEssayReview(answers)) {
+    return AttemptStatus.SUBMITTED;
+  }
+
+  return autoReviewEnabled ? AttemptStatus.GRADED : AttemptStatus.SUBMITTED;
 }
 
 async function updateAttemptAnswersFromInput(
@@ -145,7 +162,7 @@ async function finalizeExpiredAttempt(attempt: AttemptWithListQuestionsAndAnswer
         id: attempt.id,
       },
       data: {
-        status: getAttemptCompletionStatus(refreshedAnswers),
+        status: getStudentSubmissionStatus(refreshedAnswers, attempt.assignment.list.autoReviewEnabled),
         submittedAt: finalizedAt,
         totalScore: calculateAttemptTotalScore(refreshedAnswers),
       },
@@ -435,7 +452,7 @@ export async function submitAttempt(
       id: attemptId,
     },
     data: {
-      status: getAttemptCompletionStatus(answerBundle),
+      status: getStudentSubmissionStatus(answerBundle, list.autoReviewEnabled),
       submittedAt: new Date(),
       totalScore: calculateAttemptTotalScore(answerBundle),
     },
@@ -549,7 +566,49 @@ export async function getTeacherAttemptsForReview(teacherId: string) {
   });
 }
 
-export async function gradeEssayAnswers(
+export async function getTeacherReviewSummary(teacherId: string) {
+  await finalizeExpiredAttempts({
+    assignment: {
+      list: {
+        createdById: teacherId,
+      },
+    },
+  });
+
+  const [pendingAttemptCount, pendingExamCount] = await Promise.all([
+    prisma.attempt.count({
+      where: {
+        assignment: {
+          list: {
+            createdById: teacherId,
+          },
+        },
+        status: AttemptStatus.SUBMITTED,
+      },
+    }),
+    prisma.exerciseList.count({
+      where: {
+        createdById: teacherId,
+        assignments: {
+          some: {
+            attempts: {
+              some: {
+                status: AttemptStatus.SUBMITTED,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    pendingAttemptCount,
+    pendingExamCount,
+  };
+}
+
+export async function gradeAttemptAnswers(
   teacherId: string,
   attemptId: string,
   input: ManualGradeInput,
@@ -576,14 +635,17 @@ export async function gradeEssayAnswers(
     throw new AppError("Attempt not found.", 404);
   }
 
-  const essayAnswers = new Map(
-    attempt.answers
-      .filter((answer) => answer.question.type === QuestionType.ESSAY)
-      .map((answer) => [answer.id, answer]),
-  );
+  if (attempt.status === AttemptStatus.GRADED) {
+    throw new AppError(
+      "Reviewed attempts cannot be saved again. Reopen the attempt to grade it again.",
+      409,
+    );
+  }
+
+  const answersById = new Map(attempt.answers.map((answer) => [answer.id, answer]));
 
   for (const answerInput of input.answers) {
-    const answer = essayAnswers.get(answerInput.answerId);
+    const answer = answersById.get(answerInput.answerId);
 
     if (!answer) {
       throw new AppError("One or more answers cannot be graded manually.", 400);
@@ -601,18 +663,29 @@ export async function gradeEssayAnswers(
   }
 
   await prisma.$transaction(
-    input.answers.map((answerInput) =>
-      prisma.answer.update({
+    input.answers.map((answerInput) => {
+      const answer = answersById.get(answerInput.answerId);
+
+      if (!answer) {
+        throw new AppError("One or more answers cannot be graded manually.", 400);
+      }
+
+      return prisma.answer.update({
         where: {
           id: answerInput.answerId,
         },
         data: {
           manualScore: answerInput.manualScore,
           feedback: answerInput.feedback || null,
-          correctedAt: answerInput.manualScore === null ? null : new Date(),
+          correctedAt:
+            answerInput.manualScore === null
+              ? answer.question.type === QuestionType.ESSAY
+                ? null
+                : answer.correctedAt
+              : new Date(),
         },
-      }),
-    ),
+      });
+    }),
   );
 
   const refreshedAttempt = await prisma.attempt.findUniqueOrThrow({
@@ -633,7 +706,7 @@ export async function gradeEssayAnswers(
       id: attemptId,
     },
     data: {
-      status: getAttemptCompletionStatus(refreshedAttempt.answers),
+      status: getTeacherReviewStatus(refreshedAttempt.answers),
       totalScore: calculateAttemptTotalScore(refreshedAttempt.answers),
       teacherFeedback: input.teacherFeedback || null,
     },
@@ -718,6 +791,58 @@ export async function reopenAttemptForTeacher(teacherId: string, attemptId: stri
   return prisma.attempt.findUniqueOrThrow({
     where: {
       id: attemptId,
+    },
+  });
+}
+
+export async function ungradeAttemptForTeacher(teacherId: string, attemptId: string) {
+  const attempt = await prisma.attempt.findFirst({
+    where: {
+      id: attemptId,
+      assignment: {
+        list: {
+          createdById: teacherId,
+        },
+      },
+    },
+    include: {
+      assignment: {
+        include: {
+          list: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!attempt) {
+    throw new AppError("Attempt not found.", 404);
+  }
+
+  if (attempt.status !== AttemptStatus.GRADED) {
+    throw new AppError("Only reviewed attempts can be moved back to the review queue.", 409);
+  }
+
+  return prisma.attempt.update({
+    where: {
+      id: attemptId,
+    },
+    data: {
+      status: AttemptStatus.SUBMITTED,
+    },
+    include: {
+      assignment: {
+        include: {
+          list: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
     },
   });
 }

@@ -7,6 +7,7 @@ function mapListPayload(input: ExerciseListInput, teacherId: string): Prisma.Exe
   return {
     title: input.title,
     description: input.description || null,
+    autoReviewEnabled: input.autoReview,
     createdBy: {
       connect: {
         id: teacherId,
@@ -76,8 +77,26 @@ export async function getTeacherListEditorData(teacherId: string, listId: string
         },
       },
       assignments: {
-        select: {
-          studentId: true,
+        include: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          attempts: {
+            select: {
+              id: true,
+              status: true,
+              startedAt: true,
+              submittedAt: true,
+              totalScore: true,
+            },
+            orderBy: {
+              startedAt: "desc",
+            },
+          },
         },
       },
     },
@@ -155,6 +174,7 @@ export async function updateExerciseList(
       data: {
         title: input.title,
         description: input.description || null,
+        autoReviewEnabled: input.autoReview,
         timeLimitMinutes: input.timeLimitMinutes ?? null,
         dueAt: input.dueAt ? new Date(input.dueAt) : null,
         publishedAt: input.publish

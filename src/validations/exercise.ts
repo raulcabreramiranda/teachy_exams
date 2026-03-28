@@ -140,6 +140,7 @@ export const questionInputSchema = z.discriminatedUnion("type", [
 export const exerciseListInputSchema = z.object({
   title: z.string().trim().min(1),
   description: z.string().trim().optional().nullable(),
+  autoReview: z.boolean().default(true),
   timeLimitMinutes: z.number().int().positive().optional().nullable(),
   dueAt: z.iso.datetime().optional().nullable(),
   publish: z.boolean().default(false),

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { QuestionType, Role } from "@prisma/client";
+import { PageNavigation } from "@/components/layout/page-navigation";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { formatDateTime, formatScore } from "@/lib/format";
 import { requirePageSession } from "@/lib/auth";
@@ -11,6 +11,34 @@ type StudentAttemptResultPageProps = {
     id: string;
   }>;
 };
+
+function getScoreBadge(score: number | null, maxPoints: number) {
+  if (score === null) {
+    return {
+      className: "app-badge app-badge-warning",
+      label: `⏳ Score pending`,
+    };
+  }
+
+  if (score <= 0) {
+    return {
+      className: "app-badge app-badge-danger",
+      label: `😕 Score: ${formatScore(score)} / ${formatScore(maxPoints)}`,
+    };
+  }
+
+  if (score >= maxPoints) {
+    return {
+      className: "app-badge app-badge-success",
+      label: `🏆 Score: ${formatScore(score)} / ${formatScore(maxPoints)}`,
+    };
+  }
+
+  return {
+    className: "app-badge app-badge-info",
+    label: `✨ Score: ${formatScore(score)} / ${formatScore(maxPoints)}`,
+  };
+}
 
 function renderAnswer(questionType: QuestionType, configJson: unknown, responseJson: unknown) {
   if (questionType === QuestionType.MULTIPLE_CHOICE) {
@@ -73,16 +101,25 @@ export default async function StudentAttemptResultPage({
   const session = await requirePageSession([Role.STUDENT]);
   const { id } = await params;
   const attempt = await getAttemptResult(session.userId, id);
+  const totalMaxPoints = attempt.answers.reduce(
+    (total, answer) => total + answer.question.points,
+    0,
+  );
+  const totalScoreBadge = getScoreBadge(attempt.totalScore, totalMaxPoints);
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href="/aluno"
-          className="app-button-secondary px-3 py-2"
-        >
-          Back to dashboard
-        </Link>
+      <div className="app-page-header p-5">
+        <h2 className="text-2xl font-semibold">Exam result</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Review your final score, feedback, and return to your exam list when needed.
+        </p>
+        <PageNavigation
+          backHref="/aluno"
+          backLabel="Back"
+          links={[{ href: "/aluno", label: "Go to exams" }]}
+          className="mt-4"
+        />
       </div>
 
       <section className="app-card rounded-3xl p-8">
@@ -99,8 +136,12 @@ export default async function StudentAttemptResultPage({
 
           <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
             <p>Status: {attempt.status}</p>
-            <p>Total score: {formatScore(attempt.totalScore)}</p>
             <p>Due date: {formatDateTime(attempt.assignment.list.dueAt)}</p>
+            <p>
+              Total:
+              {" "}
+              <span className={totalScoreBadge.className}>{totalScoreBadge.label}</span>
+            </p>
           </div>
         </div>
 
@@ -113,51 +154,50 @@ export default async function StudentAttemptResultPage({
       </section>
 
       <section className="space-y-6">
-        {attempt.answers.map((answer) => (
-          <article
-            key={answer.id}
-            className="app-card rounded-3xl p-8"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                  {answer.question.type.replaceAll("_", " ")}
-                </p>
-                <RichTextContent
-                  html={answer.question.prompt}
-                  className="mt-2 text-lg font-semibold text-slate-900"
-                />
+        {attempt.answers.map((answer) => {
+          const finalScore = answer.manualScore ?? answer.autoScore ?? null;
+          const scoreBadge = getScoreBadge(finalScore, answer.question.points);
+
+          return (
+            <article
+              key={answer.id}
+              className="app-card rounded-3xl p-8"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                    {answer.question.type.replaceAll("_", " ")}
+                  </p>
+                  <RichTextContent
+                    html={answer.question.prompt}
+                    className="mt-2 text-lg font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div className="">
+                  <span className={scoreBadge.className}>{scoreBadge.label}</span>
+                </div>
               </div>
 
-              <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
-                <p>Auto score: {formatScore(answer.autoScore)}</p>
-                <p>Manual score: {formatScore(answer.manualScore)}</p>
-                <p>
-                  Final score:{" "}
-                  {formatScore(answer.manualScore ?? answer.autoScore ?? null)}
+              <div className="app-panel mt-4 rounded-2xl p-5">
+                <p className="font-semibold text-slate-900">Answer</p>
+                {renderAnswer(
+                  answer.question.type,
+                  answer.question.configJson,
+                  answer.responseJson,
+                )}
+
+                <p className="mt-4 font-semibold text-slate-900">Feedback</p>
+                <p className="mt-2">
+                  {answer.feedback ||
+                    (answer.question.type === QuestionType.ESSAY
+                      ? "Essay feedback is still pending."
+                      : "No answer-specific feedback.")}
                 </p>
               </div>
-            </div>
-
-            <div className="app-panel mt-4 rounded-2xl p-5">
-              {renderAnswer(
-                answer.question.type,
-                answer.question.configJson,
-                answer.responseJson,
-              )}
-            </div>
-
-            <div className="app-panel mt-4 rounded-2xl px-4 py-4 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Feedback</p>
-              <p className="mt-2">
-                {answer.feedback ||
-                  (answer.question.type === QuestionType.ESSAY
-                    ? "Essay feedback is still pending."
-                    : "No answer-specific feedback.")}
-              </p>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </section>
     </div>
   );

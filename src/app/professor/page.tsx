@@ -50,7 +50,7 @@ export default async function TeacherPage() {
             New exam
           </Link>
           <Link
-            href="/professor/attempts"
+            href="/professor/review"
             className="app-button-secondary px-3 py-2"
           >
             Open grading
@@ -142,14 +142,14 @@ export default async function TeacherPage() {
                 <p className="text-sm text-slate-500">Latest submitted and reviewed attempts.</p>
               </div>
               <Link
-                href="/professor/attempts"
+                href="/professor/review"
                 className="text-sm font-medium text-[var(--primary)] hover:text-[var(--primary-hover)]"
               >
                 Open
               </Link>
             </div>
 
-            <div className="divide-y divide-[var(--border)]">
+            <div className="app-striped-list divide-y divide-[var(--border)]">
               {attempts.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-slate-500">No submitted attempts yet.</p>
               ) : (

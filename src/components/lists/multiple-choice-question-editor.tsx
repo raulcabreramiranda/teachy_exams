@@ -88,7 +88,7 @@ export function MultipleChoiceQuestionEditor({
           <thead>
             <tr>
               <th className="px-4 py-3">✅</th>
-              <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">Options</th>
               <th className="px-4 py-3 text-right"></th>
             </tr>
           </thead>

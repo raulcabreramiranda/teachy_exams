@@ -43,6 +43,7 @@ model ExerciseList {
   title            String
   description      String?
   createdById      String
+  autoReviewEnabled Boolean     @default(true)
   timeLimitMinutes Int?
   dueAt            DateTime?
   publishedAt      DateTime?

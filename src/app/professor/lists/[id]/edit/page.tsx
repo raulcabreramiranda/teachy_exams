@@ -1,5 +1,6 @@
 import { Role } from "@prisma/client";
 import { ExerciseListEditor } from "@/components/lists/exercise-list-editor";
+import { PageNavigation } from "@/components/layout/page-navigation";
 import { toDateTimeLocalValue } from "@/lib/format";
 import { requirePageSession } from "@/lib/auth";
 import { getTeacherListEditorData, getTeacherStudents } from "@/services/exercise-list-service";
@@ -29,6 +30,12 @@ export default async function EditExerciseListPage({
         <p className="mt-1 text-sm text-slate-600">
           Updating questions is blocked after students create attempts to preserve grading data.
         </p>
+        <PageNavigation
+          backHref="/professor/lists"
+          backLabel="Back"
+          links={[{ href: "/professor/lists", label: "Go to exams" }]}
+          className="mt-4"
+        />
       </div>
 
       <ExerciseListEditor
@@ -38,6 +45,7 @@ export default async function EditExerciseListPage({
         initialValue={{
           title: list.title,
           description: list.description ?? "",
+          autoReview: list.autoReviewEnabled,
           timeLimitMinutes: list.timeLimitMinutes ? String(list.timeLimitMinutes) : "",
           dueAt: toDateTimeLocalValue(list.dueAt),
           publish: Boolean(list.publishedAt),
@@ -53,6 +61,22 @@ export default async function EditExerciseListPage({
               }) as QuestionInput,
           ),
           selectedStudentIds: list.assignments.map((assignment) => assignment.studentId),
+          results: [...list.assignments]
+            .sort((left, right) => left.student.name.localeCompare(right.student.name))
+            .map((assignment) => {
+              const attempt = assignment.attempts[0] ?? null;
+
+              return {
+                studentId: assignment.studentId,
+                studentName: assignment.student.name,
+                studentEmail: assignment.student.email,
+                attemptId: attempt?.id ?? null,
+                status: attempt?.status ?? "PENDING",
+                startedAt: attempt?.startedAt.toISOString() ?? null,
+                submittedAt: attempt?.submittedAt?.toISOString() ?? null,
+                totalScore: attempt?.totalScore ?? null,
+              };
+            }),
         }}
       />
     </div>

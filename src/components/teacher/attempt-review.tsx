@@ -10,49 +10,61 @@ import { formatDateTime, formatScore } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
 
-type AttemptReviewProps = {
-  attempts: Array<{
-    id: string;
-    startedAt: string;
-    submittedAt: string | null;
-    status: string;
-    totalScore: number | null;
-    teacherFeedback: string | null;
-    assignment: {
-      student: {
-        name: string;
-        email: string;
-      };
-      list: {
-        title: string;
-      };
+export type AttemptReviewItem = {
+  id: string;
+  startedAt: string;
+  submittedAt: string | null;
+  status: string;
+  totalScore: number | null;
+  teacherFeedback: string | null;
+  assignment: {
+    student: {
+      name: string;
+      email: string;
     };
-    answers: Array<{
+    list: {
       id: string;
-      responseJson: unknown;
-      autoScore: number | null;
-      manualScore: number | null;
-      feedback: string | null;
-      correctedAt: string | null;
-      question: {
-        type: QuestionType;
-        prompt: string;
-        points: number;
-        configJson: unknown;
-      };
-    }>;
+      title: string;
+    };
+  };
+  answers: Array<{
+    id: string;
+    responseJson: unknown;
+    autoScore: number | null;
+    manualScore: number | null;
+    feedback: string | null;
+    correctedAt: string | null;
+    question: {
+      type: QuestionType;
+      prompt: string;
+      points: number;
+      configJson: unknown;
+    };
   }>;
+};
+
+type AttemptReviewMode = "history" | "review";
+
+type AttemptReviewProps = {
+  attempts: AttemptReviewItem[];
+  mode?: AttemptReviewMode;
+  emptyMessage?: string;
+  attemptsTitle?: string;
+  attemptsDescription?: string;
+  initialSelectedAttemptId?: string | null;
+  hideAttemptList?: boolean;
+  onAttemptChange?: (attempt: AttemptReviewItem) => void;
 };
 
 type AttemptReviewAttempt = AttemptReviewProps["attempts"][number];
 type AttemptReviewAnswer = AttemptReviewAttempt["answers"][number];
-type EssayGradeFormAnswer = {
+type AnswerGradeForm = {
   manualScore: number | null;
   feedback: string;
 };
 type AttemptGradeForm = {
   teacherFeedback: string;
-  answers: Record<string, EssayGradeFormAnswer>;
+  answers: Record<string, AnswerGradeForm>;
 };
 
 function renderResponse(
@@ -119,10 +131,6 @@ function renderResponse(
   );
 }
 
-function getAttemptFilterKey(status: string) {
-  return status === "GRADED" ? "reviewed" : "pending";
-}
-
 function getAttemptStatusLabel(status: string) {
   return status === "GRADED" ? "Reviewed" : "Needs grading";
 }
@@ -144,15 +152,13 @@ function createForms(attempts: AttemptReviewProps["attempts"]) {
       {
         teacherFeedback: attempt.teacherFeedback ?? "",
         answers: Object.fromEntries(
-          attempt.answers
-            .filter((answer) => isEssayAnswer(answer))
-            .map((answer) => [
-              answer.id,
-              {
-                manualScore: answer.manualScore,
-                feedback: answer.feedback ?? "",
-              },
-            ]),
+          attempt.answers.map((answer) => [
+            answer.id,
+            {
+              manualScore: answer.manualScore,
+              feedback: answer.feedback ?? "",
+            },
+          ]),
         ),
       } satisfies AttemptGradeForm,
     ]),
@@ -202,7 +208,7 @@ function areFormsEqual(left: AttemptGradeForm | undefined, right: AttemptGradeFo
   });
 }
 
-function getEssayAnswerForm(form: AttemptGradeForm | undefined, answerId: string) {
+function getAnswerForm(form: AttemptGradeForm | undefined, answerId: string) {
   return form?.answers[answerId] ?? {
     manualScore: null,
     feedback: "",
@@ -221,33 +227,34 @@ function getPreviewManualScore(
   answer: AttemptReviewAnswer,
   form: AttemptGradeForm | undefined,
 ) {
-  if (!isEssayAnswer(answer)) {
-    return answer.manualScore;
+  const manualScore = form?.answers[answer.id]?.manualScore ?? answer.manualScore;
+
+  return clampManualScore(manualScore, answer.question.points);
+}
+
+function getManualScoreLabel(value: number | null, isReadOnlyMode: boolean) {
+  if (isReadOnlyMode && value === null) {
+    return "0";
   }
 
-  return clampManualScore(
-    getEssayAnswerForm(form, answer.id).manualScore,
-    answer.question.points,
-  );
+  return formatScore(value);
 }
 
 function normalizeAttemptForm(attempt: AttemptReviewAttempt, form: AttemptGradeForm) {
   return {
     teacherFeedback: form.teacherFeedback,
     answers: Object.fromEntries(
-      attempt.answers
-        .filter((answer) => isEssayAnswer(answer))
-        .map((answer) => {
-          const formAnswer = getEssayAnswerForm(form, answer.id);
+      attempt.answers.map((answer) => {
+        const formAnswer = getAnswerForm(form, answer.id);
 
-          return [
-            answer.id,
-            {
-              manualScore: getPreviewManualScore(answer, form),
-              feedback: formAnswer.feedback,
-            },
-          ];
-        }),
+        return [
+          answer.id,
+          {
+            manualScore: getPreviewManualScore(answer, form),
+            feedback: formAnswer.feedback,
+          },
+        ];
+      }),
     ),
   } satisfies AttemptGradeForm;
 }
@@ -266,11 +273,13 @@ function calculateAttemptTotalScorePreview(
   form: AttemptGradeForm | undefined,
 ) {
   return attempt.answers.reduce((total, answer) => {
+    const previewManualScore = getPreviewManualScore(answer, form);
+
     if (isEssayAnswer(answer)) {
-      return total + (getPreviewManualScore(answer, form) ?? 0);
+      return total + (previewManualScore ?? 0);
     }
 
-    return total + (answer.manualScore ?? answer.autoScore ?? 0);
+    return total + (previewManualScore ?? answer.autoScore ?? 0);
   }, 0);
 }
 
@@ -291,35 +300,46 @@ function applySavedFormToAttempt(
     totalScore: calculateAttemptTotalScorePreview(attempt, form),
     teacherFeedback: form.teacherFeedback || null,
     answers: attempt.answers.map((answer) => {
-      if (!isEssayAnswer(answer)) {
-        return answer;
-      }
-
-      const savedAnswer = getEssayAnswerForm(form, answer.id);
+      const savedAnswer = getAnswerForm(form, answer.id);
 
       return {
         ...answer,
         manualScore: savedAnswer.manualScore,
         feedback: savedAnswer.feedback || null,
-        correctedAt: savedAnswer.manualScore === null ? null : new Date().toISOString(),
+        correctedAt:
+          savedAnswer.manualScore === null
+            ? isEssayAnswer(answer)
+              ? null
+              : answer.correctedAt
+            : new Date().toISOString(),
       };
     }),
   };
 }
 
-export function AttemptReview({ attempts }: AttemptReviewProps) {
+function shouldShowAttemptInMode(status: string, mode: AttemptReviewMode) {
+  return mode === "history" ? status === "GRADED" : status === "SUBMITTED";
+}
+
+export function AttemptReview({
+  attempts,
+  mode = "history",
+  emptyMessage,
+  attemptsTitle,
+  attemptsDescription,
+  initialSelectedAttemptId,
+  hideAttemptList = false,
+  onAttemptChange,
+}: AttemptReviewProps) {
   const router = useRouter();
+  const isReadOnlyMode = mode === "history";
   const [attemptItems, setAttemptItems] = useState(attempts);
   const [pendingAttemptId, setPendingAttemptId] = useState<string | null>(null);
   const [reopeningAttemptId, setReopeningAttemptId] = useState<string | null>(null);
+  const [ungradingAttemptId, setUngradingAttemptId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"pending" | "reviewed">(
-    attempts.some((attempt) => getAttemptFilterKey(attempt.status) === "pending")
-      ? "pending"
-      : "reviewed",
-  );
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(
-    attempts[0]?.id ?? null,
+    initialSelectedAttemptId ?? null,
   );
   const [forms, setForms] = useState<Record<string, AttemptGradeForm>>(() =>
     createForms(attempts),
@@ -335,20 +355,31 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
     setForms(nextForms);
     setInitialForms(nextForms);
     setSaveNotice(null);
-  }, [attempts]);
+    setSelectedAttemptId((currentAttemptId) =>
+      attempts.some(
+        (attempt) =>
+          attempt.id === currentAttemptId && shouldShowAttemptInMode(attempt.status, mode),
+      )
+        ? currentAttemptId
+        : attempts.some(
+              (attempt) =>
+                attempt.id === initialSelectedAttemptId &&
+                shouldShowAttemptInMode(attempt.status, mode),
+            )
+          ? initialSelectedAttemptId ?? null
+          : null,
+    );
+  }, [attempts, initialSelectedAttemptId, mode]);
 
-  const filteredAttempts = useMemo(
+  const visibleAttempts = useMemo(
     () =>
-      attemptItems.filter((attempt) => getAttemptFilterKey(attempt.status) === statusFilter),
-    [attemptItems, statusFilter],
+      attemptItems.filter((attempt) => shouldShowAttemptInMode(attempt.status, mode)),
+    [attemptItems, mode],
   );
 
   const selectedAttempt = useMemo(
-    () =>
-      filteredAttempts.find((attempt) => attempt.id === selectedAttemptId) ??
-      filteredAttempts[0] ??
-      null,
-    [filteredAttempts, selectedAttemptId],
+    () => visibleAttempts.find((attempt) => attempt.id === selectedAttemptId) ?? null,
+    [visibleAttempts, selectedAttemptId],
   );
 
   const selectedAttemptForm = selectedAttempt ? forms[selectedAttempt.id] : undefined;
@@ -369,17 +400,27 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
       selectedAttempt ? getManualGradingRemaining(selectedAttempt, selectedAttemptForm) : 0,
     [selectedAttempt, selectedAttemptForm],
   );
+  const selectedAttemptCanSaveWithoutChanges = useMemo(
+    () =>
+      Boolean(
+        selectedAttempt &&
+          mode === "review" &&
+          selectedAttempt.status === "SUBMITTED" &&
+          selectedAttemptManualRemaining === 0 &&
+          !selectedAttemptIsDirty,
+      ),
+    [mode, selectedAttempt, selectedAttemptIsDirty, selectedAttemptManualRemaining],
+  );
+  const selectedAttemptCanSave = selectedAttemptIsDirty || selectedAttemptCanSaveWithoutChanges;
 
   useEffect(() => {
-    if (filteredAttempts.length === 0) {
+    if (
+      selectedAttemptId !== null &&
+      !visibleAttempts.some((attempt) => attempt.id === selectedAttemptId)
+    ) {
       setSelectedAttemptId(null);
-      return;
     }
-
-    if (!selectedAttempt || selectedAttempt.id !== selectedAttemptId) {
-      setSelectedAttemptId(filteredAttempts[0].id);
-    }
-  }, [filteredAttempts, selectedAttempt, selectedAttemptId]);
+  }, [visibleAttempts, selectedAttemptId]);
 
   function updateAttemptForm(
     attemptId: string,
@@ -443,16 +484,38 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
 
     const savedForm = cloneForm(normalizeAttemptForm(attemptToUpdate, form));
 
+    const updatedAttempt = applySavedFormToAttempt(attemptToUpdate, savedForm);
+    const nextAttemptItems = attemptItems.map((attempt) =>
+      attempt.id === attemptId ? updatedAttempt : attempt,
+    );
+    const nextVisibleAttempts = nextAttemptItems.filter((attempt) =>
+      shouldShowAttemptInMode(attempt.status, mode),
+    );
+
     setInitialForms((currentForms) => ({
       ...currentForms,
       [attemptId]: savedForm,
     }));
-    setAttemptItems((currentAttempts) =>
-      currentAttempts.map((attempt) =>
-        attempt.id === attemptId ? applySavedFormToAttempt(attempt, savedForm) : attempt,
-      ),
-    );
-    setSaveNotice("Grading saved.");
+    setAttemptItems(nextAttemptItems);
+    onAttemptChange?.(updatedAttempt);
+
+    if (mode === "review" && updatedAttempt.status === "GRADED") {
+      setSelectedAttemptId(nextVisibleAttempts[0]?.id ?? null);
+    }
+
+    if (mode === "review") {
+      if (updatedAttempt.status === "GRADED" && nextVisibleAttempts.length > 0) {
+        setSaveNotice("Grading saved. Opening the next student attempt.");
+      } else if (updatedAttempt.status === "GRADED") {
+        setSaveNotice("Grading saved. This exam has no more attempts to review.");
+      } else {
+        setSaveNotice("Grading saved. This attempt still needs manual grading.");
+      }
+    } else if (updatedAttempt.status === "GRADED") {
+      setSaveNotice("Grading saved.");
+    } else {
+      setSaveNotice("Grading saved. This attempt moved back to the review queue.");
+    }
   }
 
   async function handleReopen(attemptId: string) {
@@ -493,118 +556,149 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
     router.refresh();
   }
 
-  if (attemptItems.length === 0) {
+  async function handleUngrade(attemptId: string, listId: string) {
+    const confirmed = await showConfirmAlert({
+      title: "Move this attempt back to review?",
+      text:
+        "The student submission will stay locked, but this attempt will return to the teacher review queue.",
+      confirmButtonText: "Review again",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setUngradingAttemptId(attemptId);
+
+    const response = await fetch(`/api/teacher/attempts/${attemptId}/ungrade`, {
+      method: "POST",
+    });
+
+    const body = (await response.json().catch(() => null)) as
+      | { id?: string; listId?: string; message?: string }
+      | null;
+    setUngradingAttemptId(null);
+
+    if (!response.ok || !body?.listId) {
+      await showErrorAlert({
+        title: "Unable to move the attempt to review",
+        text: body?.message ?? "Try again in a moment.",
+      });
+      return;
+    }
+
+    await showSuccessAlert({
+      title: "Attempt moved to review",
+      text: "You can continue grading it in the teacher review queue.",
+      timer: 1000,
+    });
+    router.push(`/professor/review/${listId}`);
+    router.refresh();
+  }
+
+  const resolvedEmptyMessage =
+    emptyMessage ??
+    (mode === "review"
+      ? "No attempts are waiting for review."
+      : "No reviewed attempts are available.");
+  const resolvedAttemptsTitle =
+    attemptsTitle ?? (mode === "review" ? "Attempts to review" : "Reviewed attempts");
+  const resolvedAttemptsDescription =
+    attemptsDescription ??
+    (mode === "review"
+      ? "Select a student attempt and continue grading this exam."
+      : "Open any reviewed attempt to inspect the answers.");
+
+  if (visibleAttempts.length === 0) {
     return (
-      <div className="app-empty-state p-6 text-center text-slate-600">
-        No student attempts have been submitted yet.
+      <div className="space-y-4">
+        {saveNotice ? (
+          <div className="flex flex-wrap justify-end gap-3">
+            <div className="app-badge app-badge-success px-3 py-2 text-sm">
+              {saveNotice}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="app-empty-state p-6 text-center text-slate-600">
+          {resolvedEmptyMessage}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setStatusFilter("pending")}
-            className={`app-toggle-button px-3 py-2 ${
-              statusFilter === "pending"
-                ? "app-toggle-button-active"
-                : ""
-            }`}
-          >
-            Needs grading (
-            {
-              attemptItems.filter((attempt) => getAttemptFilterKey(attempt.status) === "pending")
-                .length
-            }
-            )
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("reviewed")}
-            className={`app-toggle-button px-3 py-2 ${
-              statusFilter === "reviewed"
-                ? "app-toggle-button-active"
-                : ""
-            }`}
-          >
-            Reviewed (
-            {
-              attemptItems.filter((attempt) => getAttemptFilterKey(attempt.status) === "reviewed")
-                .length
-            }
-            )
-          </button>
-        </div>
-
-        {saveNotice ? (
+      {saveNotice ? (
+        <div className="flex flex-wrap justify-end gap-3">
           <div className="app-badge app-badge-success px-3 py-2 text-sm">
             {saveNotice}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[360px,minmax(0,1fr)]">
-        <section className="app-card overflow-hidden">
-          <div className="app-card-header px-4 py-3">
-            <h3 className="text-sm font-semibold text-slate-900">Attempts</h3>
-            <p className="mt-1 text-xs text-slate-500">
-              Select an attempt to review the answers.
-            </p>
-          </div>
+      <div className={hideAttemptList ? "space-y-4" : "grid gap-4 xl:grid-cols-[360px,minmax(0,1fr)]"}>
+        {!hideAttemptList ? (
+          <section className="app-card overflow-hidden">
+            <div className="app-card-header px-4 py-3">
+              <h3 className="text-sm font-semibold text-slate-900">{resolvedAttemptsTitle}</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                {resolvedAttemptsDescription}
+              </p>
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="app-table">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3">Student</th>
-                  <th className="px-4 py-3">Exam</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAttempts.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="app-table">
+                <thead>
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
-                      No attempts found for this filter.
-                    </td>
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Exam</th>
+                    <th className="px-4 py-3">Status</th>
                   </tr>
-                ) : (
-                  filteredAttempts.map((attempt) => (
-                    <tr
-                      key={attempt.id}
-                      onClick={() => setSelectedAttemptId(attempt.id)}
-                      className={`cursor-pointer ${
-                        selectedAttempt?.id === attempt.id
-                          ? "app-table-row-selected"
-                          : ""
-                      }`}
-                    >
-                      <td className="px-4 py-3 align-top">
-                        <div className="font-medium text-slate-900">
-                          {attempt.assignment.student.name}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {formatDateTime(attempt.submittedAt)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-slate-600">
-                        {attempt.assignment.list.title}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <span className={getAttemptStatusBadgeClass(attempt.status)}>
-                          {getAttemptStatusLabel(attempt.status)}
-                        </span>
+                </thead>
+                <tbody>
+                  {visibleAttempts.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
+                        No attempts available.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  ) : (
+                    visibleAttempts.map((attempt) => (
+                      <tr
+                        key={attempt.id}
+                        onClick={() => setSelectedAttemptId(attempt.id)}
+                        className={`cursor-pointer ${
+                          selectedAttempt?.id === attempt.id
+                            ? "app-table-row-selected"
+                            : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 align-top">
+                          <div className="font-medium text-slate-900">
+                            {attempt.assignment.student.name}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {formatDateTime(attempt.submittedAt)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-600">
+                          {attempt.assignment.list.title}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className={getAttemptStatusBadgeClass(attempt.status)}>
+                            {getAttemptStatusLabel(attempt.status)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
 
         {selectedAttempt ? (
           <section className="app-card p-4">
@@ -634,22 +728,35 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
               </div>
             </div>
 
-            <div className="app-panel mt-6 flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="app-badge app-badge-warning">
-                  📝 Manual grading remaining: {selectedAttemptManualRemaining}
-                </span>
-                {selectedAttemptIsDirty ? (
-                  <span className="text-sm text-amber-800">Unsaved changes</span>
-                ) : (
-                  <span className="text-sm text-amber-800">All visible changes are saved.</span>
-                )}
+            {mode === "review" ? (
+              <div className="app-panel mt-6 flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="app-badge app-badge-warning">
+                    📝 Manual grading remaining: {selectedAttemptManualRemaining}
+                  </span>
+                  {selectedAttemptIsDirty ? (
+                    <span className="text-sm text-amber-800">Unsaved changes</span>
+                  ) : selectedAttemptCanSaveWithoutChanges ? (
+                    <span className="text-sm text-amber-800">Ready for teacher approval.</span>
+                  ) : (
+                    <span className="text-sm text-amber-800">All visible changes are saved.</span>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="app-panel mt-6 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="app-badge app-badge-success">✅ Reviewed attempt</span>
+                  <span className="text-sm text-slate-600">
+                    Read-only history. Move it back to review to edit grading, or reopen it for the student.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="mt-8 space-y-6">
               {selectedAttempt.answers.map((answer) => {
-                const essayAnswerForm = getEssayAnswerForm(selectedAttemptForm, answer.id);
+                const answerForm = getAnswerForm(selectedAttemptForm, answer.id);
                 const previewManualScore = getPreviewManualScore(answer, selectedAttemptForm);
                 const needsGrading = isEssayAnswer(answer) && previewManualScore === null;
 
@@ -658,12 +765,12 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
                     key={answer.id}
                     className="app-panel bg-white p-4"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <RichTextContent
                             html={answer.question.prompt}
-                            className="text-sm font-semibold text-slate-900"
+                            className="break-words text-sm font-semibold leading-6 text-slate-900"
                           />
                           {needsGrading ? (
                             <span className="app-badge app-badge-warning">
@@ -676,12 +783,13 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
                         </p>
                       </div>
 
-                      <div className="app-panel px-3 py-2 text-sm text-slate-600">
-                        <p>Auto score: {formatScore(answer.autoScore)}</p>
-                        {isEssayAnswer(answer) ? (
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-slate-700">Manual score</p>
+                      <div className="flex items-start gap-3 justify-self-end">
+                        <div className="pt-2">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                              Score
+                            </p>
+                            {!isReadOnlyMode ? (
                               <Tooltip content="Grading - Use the stepper to adjust the manual score quickly.">
                                 <button
                                   type="button"
@@ -691,30 +799,54 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
                                   ?
                                 </button>
                               </Tooltip>
-                            </div>
-                            <ScoreStepper
-                              value={essayAnswerForm.manualScore}
-                              min={0}
-                              max={answer.question.points}
-                              step={0.5}
-                              disabled={pendingAttemptId === selectedAttempt.id}
-                              onChange={(manualScore) =>
-                                updateAttemptForm(selectedAttempt.id, (currentForm) => ({
-                                  ...currentForm,
-                                  answers: {
-                                    ...currentForm.answers,
-                                    [answer.id]: {
-                                      ...getEssayAnswerForm(currentForm, answer.id),
-                                      manualScore,
-                                    },
-                                  },
-                                }))
-                              }
-                            />
+                            ) : null}
                           </div>
-                        ) : (
-                          <p>Manual score: {formatScore(answer.manualScore)}</p>
-                        )}
+                        </div>
+
+                        <div className="app-panel min-w-[230px] px-3 py-2 text-sm text-slate-600">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {answer.question.type !== QuestionType.ESSAY ? (
+                              <span className="app-badge app-badge-info">
+                                🤖 Auto: {formatScore(answer.autoScore)}
+                              </span>
+                            ) : null}
+                            <span
+                              className={
+                                previewManualScore === null
+                                  ? isReadOnlyMode
+                                    ? "app-badge"
+                                    : "app-badge app-badge-warning"
+                                  : "app-badge app-badge-success"
+                              }
+                            >
+                              ✍ Manual: {getManualScoreLabel(previewManualScore, isReadOnlyMode)}
+                            </span>
+                          </div>
+
+                          {!isReadOnlyMode ? (
+                            <div className="mt-3">
+                              <ScoreStepper
+                                value={answerForm.manualScore}
+                                min={0}
+                                max={answer.question.points}
+                                step={0.5}
+                                disabled={pendingAttemptId === selectedAttempt.id}
+                                onChange={(manualScore) =>
+                                  updateAttemptForm(selectedAttempt.id, (currentForm) => ({
+                                    ...currentForm,
+                                    answers: {
+                                      ...currentForm.answers,
+                                      [answer.id]: {
+                                        ...getAnswerForm(currentForm, answer.id),
+                                        manualScore,
+                                      },
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
 
@@ -732,22 +864,28 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
                           Feedback
                         </label>
                         <textarea
-                          value={essayAnswerForm.feedback}
-                          onChange={(event) =>
-                            updateAttemptForm(selectedAttempt.id, (currentForm) => ({
-                              ...currentForm,
-                              answers: {
-                                ...currentForm.answers,
-                                [answer.id]: {
-                                  ...getEssayAnswerForm(currentForm, answer.id),
-                                  feedback: event.target.value,
-                                },
-                              },
-                            }))
+                          value={answerForm.feedback}
+                          onChange={
+                            isReadOnlyMode
+                              ? undefined
+                              : (event) =>
+                                  updateAttemptForm(selectedAttempt.id, (currentForm) => ({
+                                    ...currentForm,
+                                    answers: {
+                                      ...currentForm.answers,
+                                      [answer.id]: {
+                                        ...getAnswerForm(currentForm, answer.id),
+                                        feedback: event.target.value,
+                                      },
+                                    },
+                                  }))
                           }
+                          readOnly={isReadOnlyMode}
                           rows={3}
                           className="app-textarea"
-                          placeholder="Optional answer feedback"
+                          placeholder={
+                            isReadOnlyMode ? "Feedback is read-only on reviewed attempts." : "Optional answer feedback"
+                          }
                         />
                       </div>
                     ) : null}
@@ -762,50 +900,102 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
               </label>
               <textarea
                 value={selectedAttemptForm?.teacherFeedback ?? ""}
-                onChange={(event) =>
-                  updateAttemptForm(selectedAttempt.id, (currentForm) => ({
-                    ...currentForm,
-                    teacherFeedback: event.target.value,
-                  }))
+                onChange={
+                  isReadOnlyMode
+                    ? undefined
+                    : (event) =>
+                        updateAttemptForm(selectedAttempt.id, (currentForm) => ({
+                          ...currentForm,
+                          teacherFeedback: event.target.value,
+                        }))
                 }
+                readOnly={isReadOnlyMode}
                 rows={3}
                 className="app-textarea"
-                placeholder="Optional summary feedback for the whole attempt"
+                placeholder={
+                  isReadOnlyMode
+                    ? "Overall feedback is read-only on reviewed attempts."
+                    : "Optional summary feedback for the whole attempt"
+                }
               />
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-slate-500">
-                {selectedAttemptIsDirty ? "Changes not saved yet." : "No pending changes."}
+                {isReadOnlyMode
+                  ? "Reviewed attempts can be moved back to review or reopened for the student."
+                  : selectedAttemptCanSaveWithoutChanges
+                    ? "This attempt is waiting for teacher approval."
+                  : selectedAttemptIsDirty
+                    ? "Changes not saved yet."
+                    : "No pending changes."}
               </div>
 
               <div className="flex flex-wrap justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleReopen(selectedAttempt.id)}
-                  disabled={reopeningAttemptId === selectedAttempt.id}
-                  className="app-button-secondary px-4 py-2"
-                >
-                  {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSubmit(selectedAttempt.id)}
-                  disabled={
-                    pendingAttemptId === selectedAttempt.id ||
-                    reopeningAttemptId === selectedAttempt.id ||
-                    !selectedAttemptIsDirty
-                  }
-                  className="app-button-primary px-4 py-2"
-                >
-                  {pendingAttemptId === selectedAttempt.id ? "Saving..." : "Save grading"}
-                </button>
+                {isReadOnlyMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUngrade(
+                          selectedAttempt.id,
+                          selectedAttempt.assignment.list.id,
+                        )
+                      }
+                      disabled={ungradingAttemptId === selectedAttempt.id}
+                      className="app-button-secondary px-4 py-2"
+                    >
+                      {ungradingAttemptId === selectedAttempt.id
+                        ? "Review again..."
+                        : "Review again"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReopen(selectedAttempt.id)}
+                      disabled={reopeningAttemptId === selectedAttempt.id}
+                      className="app-button-secondary px-4 py-2"
+                    >
+                      {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleReopen(selectedAttempt.id)}
+                      disabled={reopeningAttemptId === selectedAttempt.id}
+                      className="app-button-secondary px-4 py-2"
+                    >
+                      {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
+                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit(selectedAttempt.id)}
+                    disabled={
+                      pendingAttemptId === selectedAttempt.id ||
+                      reopeningAttemptId === selectedAttempt.id ||
+                      !selectedAttemptCanSave
+                    }
+                    className="app-button-primary px-4 py-2"
+                  >
+                    {pendingAttemptId === selectedAttempt.id
+                      ? selectedAttemptCanSaveWithoutChanges && !selectedAttemptIsDirty
+                        ? "Marking..."
+                        : "Saving..."
+                      : selectedAttemptCanSaveWithoutChanges && !selectedAttemptIsDirty
+                        ? "Mark as reviewed"
+                        : "Save grading"}
+                  </button>
+                  </>
+                )}
               </div>
             </div>
           </section>
         ) : (
           <div className="app-empty-state p-8 text-center text-slate-500">
-            No attempt selected.
+            {mode === "review"
+              ? "Select a student attempt to start grading."
+              : "Select a reviewed attempt to inspect it."}
           </div>
         )}
       </div>
