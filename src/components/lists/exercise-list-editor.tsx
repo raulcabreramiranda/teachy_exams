@@ -1,7 +1,6 @@
 "use client";
 
 import { QuestionType } from "@prisma/client";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { EssayQuestionEditor } from "@/components/lists/essay-question-editor";
 import {
@@ -12,6 +11,7 @@ import { FillInTheBlankQuestionEditor } from "@/components/lists/fill-in-the-bla
 import { MatchingQuestionEditor } from "@/components/lists/matching-question-editor";
 import { MultipleChoiceQuestionEditor } from "@/components/lists/multiple-choice-question-editor";
 import { Modal } from "@/components/ui/modal";
+import { useRouter } from "@/i18n/navigation";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, TrashIcon } from "@/components/ui/icons";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";

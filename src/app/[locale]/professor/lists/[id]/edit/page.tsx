@@ -1,0 +1,86 @@
+import { Role } from "@prisma/client";
+import { getTranslations } from "next-intl/server";
+import { ExerciseListEditor } from "@/components/lists/exercise-list-editor";
+import { PageNavigation } from "@/components/layout/page-navigation";
+import { toDateTimeLocalValue } from "@/lib/format";
+import { requirePageSession } from "@/lib/auth";
+import { getTeacherListEditorData, getTeacherStudents } from "@/services/exercise-list-service";
+import type { QuestionInput } from "@/validations/exercise";
+
+type EditExerciseListPageProps = {
+  params: Promise<{
+    locale: string;
+    id: string;
+  }>;
+};
+
+export default async function EditExerciseListPage({
+  params,
+}: EditExerciseListPageProps) {
+  const { locale, id } = await params;
+  const t = await getTranslations({ locale });
+  const session = await requirePageSession([Role.TEACHER], locale);
+
+  const [list, students] = await Promise.all([
+    getTeacherListEditorData(session.userId, id),
+    getTeacherStudents(),
+  ]);
+
+  return (
+    <div className="space-y-5">
+      <div className="app-page-header p-5">
+        <h2 className="text-2xl font-semibold">{t("TeacherExamEditor.editTitle")}</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          {t("TeacherExamEditor.editSubtitle")}
+        </p>
+        <PageNavigation
+          backHref="/professor/lists"
+          links={[{ href: "/professor/lists", label: t("TeacherExamEditor.goToExams") }]}
+          className="mt-4"
+        />
+      </div>
+
+      <ExerciseListEditor
+        mode="edit"
+        listId={list.id}
+        students={students}
+        initialValue={{
+          title: list.title,
+          description: list.description ?? "",
+          autoReview: list.autoReviewEnabled,
+          timeLimitMinutes: list.timeLimitMinutes ? String(list.timeLimitMinutes) : "",
+          dueAt: toDateTimeLocalValue(list.dueAt),
+          publish: Boolean(list.publishedAt),
+          questions: list.questions.map(
+            (question) =>
+              ({
+                id: question.id,
+                order: question.order,
+                type: question.type,
+                prompt: question.prompt,
+                points: question.points,
+                config: question.configJson,
+              }) as QuestionInput,
+          ),
+          selectedStudentIds: list.assignments.map((assignment) => assignment.studentId),
+          results: [...list.assignments]
+            .sort((left, right) => left.student.name.localeCompare(right.student.name))
+            .map((assignment) => {
+              const attempt = assignment.attempts[0] ?? null;
+
+              return {
+                studentId: assignment.studentId,
+                studentName: assignment.student.name,
+                studentEmail: assignment.student.email,
+                attemptId: attempt?.id ?? null,
+                status: attempt?.status ?? "PENDING",
+                startedAt: attempt?.startedAt.toISOString() ?? null,
+                submittedAt: attempt?.submittedAt?.toISOString() ?? null,
+                totalScore: attempt?.totalScore ?? null,
+              };
+            }),
+        }}
+      />
+    </div>
+  );
+}

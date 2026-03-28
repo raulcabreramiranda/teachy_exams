@@ -1,7 +1,9 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import type { AttemptReviewItem } from "@/components/teacher/attempt-review";
+import { Link } from "@/i18n/navigation";
 
 type ReviewQueueProps = {
+  locale: string;
   attempts: AttemptReviewItem[];
 };
 
@@ -46,22 +48,25 @@ function getPendingExamGroups(attempts: AttemptReviewItem[]) {
   });
 }
 
-export function ReviewQueue({ attempts }: ReviewQueueProps) {
+export async function ReviewQueue({ locale, attempts }: ReviewQueueProps) {
+  const t = await getTranslations({ locale });
   const examGroups = getPendingExamGroups(attempts);
 
   return (
     <section className="app-card overflow-hidden">
       <div className="app-card-header px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-900">Review queue</h3>
+        <h3 className="text-sm font-semibold text-slate-900">
+          {t("TeacherReviewQueue.cardTitle")}
+        </h3>
         <p className="mt-1 text-xs text-slate-500">
-          Open an exam to review its submitted attempts on a dedicated page.
+          {t("TeacherReviewQueue.cardSubtitle")}
         </p>
       </div>
 
       {examGroups.length === 0 ? (
         <div className="p-4">
           <div className="app-empty-state p-6 text-center text-sm text-slate-600">
-            All submitted attempts have been reviewed.
+            {t("TeacherReviewQueue.empty")}
           </div>
         </div>
       ) : (
@@ -76,8 +81,9 @@ export function ReviewQueue({ attempts }: ReviewQueueProps) {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900">{group.title}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {group.attempts.length} pending{" "}
-                    {group.attempts.length === 1 ? "attempt" : "attempts"}
+                    {t("TeacherReviewQueue.pendingAttempts", {
+                      count: group.attempts.length,
+                    })}
                   </p>
                 </div>
                 <span className="app-badge app-badge-warning">

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/layout/brand-mark";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { LogoutButton } from "@/components/layout/logout-button";
+import { Link, usePathname } from "@/i18n/navigation";
 
 type DashboardNavItem = {
   href: string;
@@ -146,6 +146,7 @@ export function DashboardShell({
                       {statusNotice.compactLabel}
                     </Link>
                   ) : null}
+                  <LanguageSwitcher />
                   <LogoutButton />
                 </div>
               </div>
@@ -170,6 +171,7 @@ export function DashboardShell({
                       {statusNotice.compactLabel}
                     </Link>
                   ) : null}
+                  <LanguageSwitcher />
                   <LogoutButton />
                 </div>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 
 type BackButtonProps = {
   fallbackHref: string;
@@ -10,9 +11,10 @@ type BackButtonProps = {
 
 export function BackButton({
   fallbackHref,
-  label = "Back",
+  label,
   className = "app-button-secondary px-3 py-2",
 }: BackButtonProps) {
+  const t = useTranslations("Common");
   const router = useRouter();
 
   function handleClick() {
@@ -26,7 +28,7 @@ export function BackButton({
 
   return (
     <button type="button" onClick={handleClick} className={className}>
-      {label}
+      {label ?? t("back")}
     </button>
   );
 }

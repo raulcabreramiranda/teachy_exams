@@ -2,6 +2,38 @@
 
 Full-stack exercise list manager built with Next.js App Router, TypeScript, Prisma, PostgreSQL, and Tailwind CSS.
 
+## Internationalization
+
+The UI now uses `next-intl` with prefix-based locales:
+
+- `/en` for English
+- `/pt` for Portuguese
+- `/es` for Spanish
+
+Routing rules:
+
+- `/` redirects to `/en`
+- UI pages live under `src/app/[locale]/...`
+- API routes stay unprefixed under `src/app/api/...`
+- Locale switching preserves the current page path and query string
+
+### Add a translation key
+
+1. Add the new key to:
+   - `src/messages/en.json`
+   - `src/messages/pt.json`
+   - `src/messages/es.json`
+2. Read the key in:
+   - server components with `getTranslations()`
+   - client components with `useTranslations()`
+
+### Add a new locale
+
+1. Add the locale code to `src/i18n/routing.ts`
+2. Create `src/messages/<locale>.json`
+3. Add the locale label to the language switcher messages
+4. If needed, update locale-specific fallback labels in `src/lib/format.ts`
+
 ## Features
 
 - Teacher flow
@@ -89,10 +121,8 @@ Total attempt score:
 ```text
 src/
   app/
+    [locale]/
     api/
-    aluno/
-    professor/
-    login/
   components/
     auth/
     layout/
@@ -155,6 +185,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+The app will redirect to `http://localhost:3000/en`.
 
 ## Seeded Accounts
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { IconButton } from "@/components/ui/icon-button";
@@ -35,6 +36,8 @@ const emptyStudentForm: StudentFormState = {
 export function StudentManagementTable({
   students,
 }: StudentManagementTableProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
@@ -85,18 +88,20 @@ export function StudentManagementTable({
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
       await showErrorAlert({
-        title: "Unable to save the student",
-        text: body?.message ?? "Review the form data and try again.",
+        title: t("TeacherStudents.saveErrorTitle"),
+        text: body?.message ?? t("TeacherStudents.saveErrorText"),
       });
       return;
     }
 
     closeModal();
     await showSuccessAlert({
-      title: editingStudentId ? "Student updated" : "Student created",
+      title: editingStudentId
+        ? t("TeacherStudents.updatedTitle")
+        : t("TeacherStudents.createdTitle"),
       text: editingStudentId
-        ? "The student account was updated successfully."
-        : "The student account was created successfully.",
+        ? t("TeacherStudents.updatedText")
+        : t("TeacherStudents.createdText"),
       timer: 1000,
     });
     router.refresh();
@@ -104,10 +109,10 @@ export function StudentManagementTable({
 
   async function handleDelete(studentId: string) {
     const confirmed = await showConfirmAlert({
-      title: "Archive student?",
-      text: "The student will no longer appear in active exams.",
-      confirmButtonText: "Archive",
-      cancelButtonText: "Keep",
+      title: t("TeacherStudents.archiveTitle"),
+      text: t("TeacherStudents.archiveText"),
+      confirmButtonText: t("TeacherStudents.archiveConfirm"),
+      cancelButtonText: t("TeacherStudents.archiveCancel"),
     });
 
     if (!confirmed) {
@@ -125,15 +130,15 @@ export function StudentManagementTable({
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
       await showErrorAlert({
-        title: "Unable to archive the student",
-        text: body?.message ?? "Try again in a moment.",
+        title: t("TeacherStudents.archiveErrorTitle"),
+        text: body?.message ?? t("TeacherStudents.archiveErrorText"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Student archived",
-      text: "The account was moved out of the active exam roster.",
+      title: t("TeacherStudents.archivedTitle"),
+      text: t("TeacherStudents.archivedText"),
       timer: 1000,
     });
     router.refresh();
@@ -143,28 +148,34 @@ export function StudentManagementTable({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Students</h2>
-          <p className="text-sm text-slate-500">Manage active student accounts.</p>
+          <h2 className="text-sm font-semibold text-slate-900">
+            {t("TeacherStudents.title")}
+          </h2>
+          <p className="text-sm text-slate-500">{t("TeacherStudents.subtitle")}</p>
         </div>
-        <IconButton label="New student" icon={<PlusIcon />} onClick={openCreateModal} />
+        <IconButton
+          label={t("TeacherStudents.newStudent")}
+          icon={<PlusIcon />}
+          onClick={openCreateModal}
+        />
       </div>
 
       <div className="app-card overflow-hidden">
         <table className="app-table">
           <thead>
             <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Assignments</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-3">{t("TeacherStudents.columns.name")}</th>
+              <th className="px-4 py-3">{t("TeacherStudents.columns.email")}</th>
+              <th className="px-4 py-3">{t("TeacherStudents.columns.assignments")}</th>
+              <th className="px-4 py-3">{t("TeacherStudents.columns.created")}</th>
+              <th className="px-4 py-3 text-right">{t("Common.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No students found.
+                  {t("TeacherStudents.noStudents")}
                 </td>
               </tr>
             ) : (
@@ -173,16 +184,18 @@ export function StudentManagementTable({
                   <td className="px-4 py-3 font-medium text-slate-900">{student.name}</td>
                   <td className="px-4 py-3 text-slate-600">{student.email}</td>
                   <td className="px-4 py-3 text-slate-600">{student.assignmentsCount}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDateTime(student.createdAt)}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {formatDateTime(student.createdAt, locale)}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <IconButton
-                        label="Edit student"
+                        label={t("TeacherStudents.editStudent")}
                         icon={<PencilIcon />}
                         onClick={() => openEditModal(student)}
                       />
                       <IconButton
-                        label="Archive student"
+                        label={t("TeacherStudents.archiveStudent")}
                         icon={<TrashIcon />}
                         variant="danger"
                         disabled={pendingStudentId === student.id}
@@ -199,13 +212,17 @@ export function StudentManagementTable({
 
       <Modal
         open={isModalOpen}
-        title={editingStudentId ? "Edit student" : "New student"}
+        title={
+          editingStudentId
+            ? t("TeacherStudents.modalEditTitle")
+            : t("TeacherStudents.modalNewTitle")
+        }
         onClose={closeModal}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Name
+              {t("TeacherStudents.name")}
             </label>
             <input
               value={form.name}
@@ -222,7 +239,7 @@ export function StudentManagementTable({
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Email
+              {t("TeacherStudents.email")}
             </label>
             <input
               value={form.email}
@@ -240,7 +257,7 @@ export function StudentManagementTable({
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Password
+              {t("TeacherStudents.password")}
             </label>
             <input
               value={form.password}
@@ -252,7 +269,9 @@ export function StudentManagementTable({
               }
               type="password"
               className="app-input"
-              placeholder={editingStudentId ? "Leave blank to keep current password" : ""}
+              placeholder={
+                editingStudentId ? t("TeacherStudents.passwordPlaceholder") : ""
+              }
               required={!editingStudentId}
             />
           </div>
@@ -263,14 +282,14 @@ export function StudentManagementTable({
               onClick={closeModal}
               className="app-button-secondary px-3 py-2"
             >
-              Cancel
+              {t("Common.cancel")}
             </button>
             <button
               type="submit"
               disabled={isSaving}
               className="app-button-primary px-3 py-2"
             >
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? t("Common.loading") : t("Common.save")}
             </button>
           </div>
         </form>

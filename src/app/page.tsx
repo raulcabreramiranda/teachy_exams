@@ -1,13 +1,6 @@
-import { Role } from "@prisma/client";
-import { redirect } from "next/navigation";
-import { getOptionalPageSession } from "@/lib/auth";
+import {redirect} from "next/navigation";
+import {defaultLocale} from "@/i18n/routing";
 
-export default async function HomePage() {
-  const session = await getOptionalPageSession();
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  redirect(session.role === Role.TEACHER ? "/professor" : "/aluno");
+export default function RootPage() {
+  redirect(`/${defaultLocale}`);
 }

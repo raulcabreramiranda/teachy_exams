@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { BackButton } from "@/components/layout/back-button";
+import { Link } from "@/i18n/navigation";
 
 type PageNavigationLink = {
   href: string;
@@ -16,7 +16,7 @@ type PageNavigationProps = {
 
 export function PageNavigation({
   backHref,
-  backLabel = "Back",
+  backLabel,
   links = [],
   className = "",
 }: PageNavigationProps) {

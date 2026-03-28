@@ -1,11 +1,12 @@
 "use client";
 
 import { QuestionType } from "@prisma/client";
-import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { ScoreStepper } from "@/components/ui/score-stepper";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useRouter } from "@/i18n/navigation";
 import { formatDateTime, formatScore } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { FillInTheBlankConfig, MatchingConfig, MultipleChoiceConfig } from "@/validations/exercise";
@@ -71,6 +72,7 @@ function renderResponse(
   type: QuestionType,
   responseJson: unknown,
   configJson: unknown,
+  t: ReturnType<typeof useTranslations>,
 ) {
   if (type === QuestionType.MULTIPLE_CHOICE) {
     const config = configJson as MultipleChoiceConfig;
@@ -83,7 +85,7 @@ function renderResponse(
           .map((option) => (
             <li key={option.id}>• {option.text}</li>
           ))}
-        {!response.selectedOptionIds?.length ? <li>No option selected.</li> : null}
+        {!response.selectedOptionIds?.length ? <li>{t("AttemptReview.noOptionSelected")}</li> : null}
       </ul>
     );
   }
@@ -92,7 +94,7 @@ function renderResponse(
     const response = responseJson as { text?: string };
     return (
       <p className="whitespace-pre-wrap text-sm text-slate-600">
-        {response.text || "No answer provided."}
+        {response.text || t("AttemptReview.noAnswerProvided")}
       </p>
     );
   }
@@ -104,7 +106,10 @@ function renderResponse(
       <ul className="space-y-1 text-sm text-slate-600">
         {config.answers.map((_, index) => (
           <li key={index}>
-            Blank {index + 1}: {response.blanks?.[index] || "No answer"}
+            {t("AttemptReview.blank", {
+              index: index + 1,
+              value: response.blanks?.[index] || t("AttemptReview.noAnswer"),
+            })}
           </li>
         ))}
       </ul>
@@ -119,7 +124,8 @@ function renderResponse(
       {config.leftItems.map((item) => {
         const rightId = response.pairs?.[item.id];
         const rightLabel =
-          config.rightItems.find((rightItem) => rightItem.id === rightId)?.label ?? "No match";
+          config.rightItems.find((rightItem) => rightItem.id === rightId)?.label ??
+          t("AttemptReview.noMatch");
 
         return (
           <li key={item.id}>
@@ -131,8 +137,8 @@ function renderResponse(
   );
 }
 
-function getAttemptStatusLabel(status: string) {
-  return status === "GRADED" ? "Reviewed" : "Needs grading";
+function getAttemptStatusLabel(status: string, t: ReturnType<typeof useTranslations>) {
+  return status === "GRADED" ? t("Status.reviewed") : t("Status.needsGrading");
 }
 
 function getAttemptStatusBadgeClass(status: string) {
@@ -232,12 +238,40 @@ function getPreviewManualScore(
   return clampManualScore(manualScore, answer.question.points);
 }
 
-function getManualScoreLabel(value: number | null, isReadOnlyMode: boolean) {
+function getManualScoreLabel(
+  value: number | null,
+  isReadOnlyMode: boolean,
+  locale: string,
+  t: ReturnType<typeof useTranslations>,
+) {
   if (isReadOnlyMode && value === null) {
     return "0";
   }
 
-  return formatScore(value);
+  if (value === null) {
+    return t("Status.scorePending");
+  }
+
+  return formatScore(value, locale);
+}
+
+function getQuestionTypeLabel(
+  type: QuestionType,
+  t: ReturnType<typeof useTranslations>,
+) {
+  if (type === QuestionType.MULTIPLE_CHOICE) {
+    return t("QuestionType.multipleChoice");
+  }
+
+  if (type === QuestionType.ESSAY) {
+    return t("QuestionType.essay");
+  }
+
+  if (type === QuestionType.FILL_IN_THE_BLANK) {
+    return t("QuestionType.fillInTheBlank");
+  }
+
+  return t("QuestionType.matching");
 }
 
 function normalizeAttemptForm(attempt: AttemptReviewAttempt, form: AttemptGradeForm) {
@@ -331,6 +365,8 @@ export function AttemptReview({
   hideAttemptList = false,
   onAttemptChange,
 }: AttemptReviewProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const isReadOnlyMode = mode === "history";
   const [attemptItems, setAttemptItems] = useState(attempts);
@@ -470,8 +506,8 @@ export function AttemptReview({
 
     if (!response.ok) {
       await showErrorAlert({
-        title: "Unable to save grading",
-        text: body?.message ?? "Review the scores and try again.",
+        title: t("AttemptReview.unableToSaveTitle"),
+        text: body?.message ?? t("AttemptReview.unableToSaveText"),
       });
       return;
     }
@@ -505,26 +541,25 @@ export function AttemptReview({
 
     if (mode === "review") {
       if (updatedAttempt.status === "GRADED" && nextVisibleAttempts.length > 0) {
-        setSaveNotice("Grading saved. Opening the next student attempt.");
+        setSaveNotice(t("AttemptReview.saveNoticeNext"));
       } else if (updatedAttempt.status === "GRADED") {
-        setSaveNotice("Grading saved. This exam has no more attempts to review.");
+        setSaveNotice(t("AttemptReview.saveNoticeDone"));
       } else {
-        setSaveNotice("Grading saved. This attempt still needs manual grading.");
+        setSaveNotice(t("AttemptReview.saveNoticeManual"));
       }
     } else if (updatedAttempt.status === "GRADED") {
-      setSaveNotice("Grading saved.");
+      setSaveNotice(t("AttemptReview.saveNoticeSimple"));
     } else {
-      setSaveNotice("Grading saved. This attempt moved back to the review queue.");
+      setSaveNotice(t("AttemptReview.saveNoticeMovedBack"));
     }
   }
 
   async function handleReopen(attemptId: string) {
     const confirmed = await showConfirmAlert({
-      title: "Reopen this attempt?",
-      text:
-        "The student will be able to continue this exam. Existing grades and feedback will be cleared.",
-      confirmButtonText: "Reopen",
-      cancelButtonText: "Cancel",
+      title: t("AttemptReview.reopenTitle"),
+      text: t("AttemptReview.reopenText"),
+      confirmButtonText: t("AttemptReview.reopenConfirm"),
+      cancelButtonText: t("Common.cancel"),
     });
 
     if (!confirmed) {
@@ -542,15 +577,15 @@ export function AttemptReview({
 
     if (!response.ok) {
       await showErrorAlert({
-        title: "Unable to reopen the attempt",
-        text: body?.message ?? "Try again in a moment.",
+        title: t("AttemptReview.reopenErrorTitle"),
+        text: body?.message ?? t("AttemptReview.reopenErrorText"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Attempt reopened",
-      text: "The exam was returned to the student for another submission.",
+      title: t("AttemptReview.reopenedTitle"),
+      text: t("AttemptReview.reopenedText"),
       timer: 1000,
     });
     router.refresh();
@@ -558,11 +593,10 @@ export function AttemptReview({
 
   async function handleUngrade(attemptId: string, listId: string) {
     const confirmed = await showConfirmAlert({
-      title: "Move this attempt back to review?",
-      text:
-        "The student submission will stay locked, but this attempt will return to the teacher review queue.",
-      confirmButtonText: "Review again",
-      cancelButtonText: "Cancel",
+      title: t("AttemptReview.ungradeTitle"),
+      text: t("AttemptReview.ungradeText"),
+      confirmButtonText: t("AttemptReview.ungradeConfirm"),
+      cancelButtonText: t("Common.cancel"),
     });
 
     if (!confirmed) {
@@ -582,15 +616,15 @@ export function AttemptReview({
 
     if (!response.ok || !body?.listId) {
       await showErrorAlert({
-        title: "Unable to move the attempt to review",
-        text: body?.message ?? "Try again in a moment.",
+        title: t("AttemptReview.ungradeErrorTitle"),
+        text: body?.message ?? t("AttemptReview.ungradeErrorText"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Attempt moved to review",
-      text: "You can continue grading it in the teacher review queue.",
+      title: t("AttemptReview.ungradedTitle"),
+      text: t("AttemptReview.ungradedText"),
       timer: 1000,
     });
     router.push(`/professor/review/${listId}`);
@@ -600,15 +634,16 @@ export function AttemptReview({
   const resolvedEmptyMessage =
     emptyMessage ??
     (mode === "review"
-      ? "No attempts are waiting for review."
-      : "No reviewed attempts are available.");
+      ? t("AttemptReview.emptyReview")
+      : t("AttemptReview.emptyHistory"));
   const resolvedAttemptsTitle =
-    attemptsTitle ?? (mode === "review" ? "Attempts to review" : "Reviewed attempts");
+    attemptsTitle ??
+    (mode === "review" ? t("AttemptReview.titleReview") : t("AttemptReview.titleHistory"));
   const resolvedAttemptsDescription =
     attemptsDescription ??
     (mode === "review"
-      ? "Select a student attempt and continue grading this exam."
-      : "Open any reviewed attempt to inspect the answers.");
+      ? t("AttemptReview.descriptionReview")
+      : t("AttemptReview.descriptionHistory"));
 
   if (visibleAttempts.length === 0) {
     return (
@@ -652,16 +687,16 @@ export function AttemptReview({
               <table className="app-table">
                 <thead>
                   <tr>
-                    <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3">Exam</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">{t("AttemptReview.student")}</th>
+                    <th className="px-4 py-3">{t("AttemptReview.exam")}</th>
+                    <th className="px-4 py-3">{t("AttemptReview.status")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleAttempts.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
-                        No attempts available.
+                        {t("AttemptReview.noAttemptsAvailable")}
                       </td>
                     </tr>
                   ) : (
@@ -680,7 +715,7 @@ export function AttemptReview({
                             {attempt.assignment.student.name}
                           </div>
                           <div className="text-xs text-slate-500">
-                            {formatDateTime(attempt.submittedAt)}
+                            {formatDateTime(attempt.submittedAt, locale)}
                           </div>
                         </td>
                         <td className="px-4 py-3 align-top text-slate-600">
@@ -688,7 +723,7 @@ export function AttemptReview({
                         </td>
                         <td className="px-4 py-3 align-top">
                           <span className={getAttemptStatusBadgeClass(attempt.status)}>
-                            {getAttemptStatusLabel(attempt.status)}
+                            {getAttemptStatusLabel(attempt.status, t)}
                           </span>
                         </td>
                       </tr>
@@ -716,14 +751,24 @@ export function AttemptReview({
               </div>
 
               <div className="app-panel px-3 py-2 text-sm text-slate-600">
-                <p>Started: {formatDateTime(selectedAttempt.startedAt)}</p>
-                <p>Submitted: {formatDateTime(selectedAttempt.submittedAt)}</p>
-                <p>Status: {getAttemptStatusLabel(selectedAttempt.status)}</p>
                 <p>
-                  Total score:{" "}
-                  {formatScore(
-                    calculateAttemptTotalScorePreview(selectedAttempt, selectedAttemptForm),
-                  )}
+                  {t("AttemptReview.started", {
+                    date: formatDateTime(selectedAttempt.startedAt, locale),
+                  })}
+                </p>
+                <p>
+                  {t("AttemptReview.submitted", {
+                    date: formatDateTime(selectedAttempt.submittedAt, locale),
+                  })}
+                </p>
+                <p>{t("AttemptReview.status")}: {getAttemptStatusLabel(selectedAttempt.status, t)}</p>
+                <p>
+                  {t("AttemptReview.totalScore", {
+                    score: formatScore(
+                      calculateAttemptTotalScorePreview(selectedAttempt, selectedAttemptForm),
+                      locale,
+                    ),
+                  })}
                 </p>
               </div>
             </div>
@@ -732,23 +777,31 @@ export function AttemptReview({
               <div className="app-panel mt-6 flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="app-badge app-badge-warning">
-                    📝 Manual grading remaining: {selectedAttemptManualRemaining}
+                    {t("AttemptReview.manualRemaining", {
+                      count: selectedAttemptManualRemaining,
+                    })}
                   </span>
                   {selectedAttemptIsDirty ? (
-                    <span className="text-sm text-amber-800">Unsaved changes</span>
+                    <span className="text-sm text-amber-800">
+                      {t("AttemptReview.unsavedChanges")}
+                    </span>
                   ) : selectedAttemptCanSaveWithoutChanges ? (
-                    <span className="text-sm text-amber-800">Ready for teacher approval.</span>
+                    <span className="text-sm text-amber-800">
+                      {t("AttemptReview.readyForApproval")}
+                    </span>
                   ) : (
-                    <span className="text-sm text-amber-800">All visible changes are saved.</span>
+                    <span className="text-sm text-amber-800">{t("AttemptReview.allSaved")}</span>
                   )}
                 </div>
               </div>
             ) : (
               <div className="app-panel mt-6 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="app-badge app-badge-success">✅ Reviewed attempt</span>
+                  <span className="app-badge app-badge-success">
+                    {t("AttemptReview.reviewedAttempt")}
+                  </span>
                   <span className="text-sm text-slate-600">
-                    Read-only history. Move it back to review to edit grading, or reopen it for the student.
+                    {t("AttemptReview.readOnlyHistory")}
                   </span>
                 </div>
               </div>
@@ -774,12 +827,13 @@ export function AttemptReview({
                           />
                           {needsGrading ? (
                             <span className="app-badge app-badge-warning">
-                              📝 Needs grading
+                              {t("Status.needsGrading")}
                             </span>
                           ) : null}
                         </div>
                         <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                          {answer.question.type.replaceAll("_", " ")} • {answer.question.points} points
+                          {getQuestionTypeLabel(answer.question.type, t)} •{" "}
+                          {t("AssignmentWorkspace.points", { count: answer.question.points })}
                         </p>
                       </div>
 
@@ -787,13 +841,13 @@ export function AttemptReview({
                         <div className="pt-2">
                           <div className="flex items-center gap-2">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                              Score
+                              {t("AttemptReview.score")}
                             </p>
                             {!isReadOnlyMode ? (
-                              <Tooltip content="Grading - Use the stepper to adjust the manual score quickly.">
+                              <Tooltip content={t("AttemptReview.gradingHelp")}>
                                 <button
                                   type="button"
-                                  aria-label="Grading help"
+                                  aria-label={t("AttemptReview.gradingHelpLabel")}
                                   className="app-icon-button h-5 w-5 rounded-full text-[11px] font-semibold text-slate-500"
                                 >
                                   ?
@@ -807,7 +861,9 @@ export function AttemptReview({
                           <div className="flex flex-wrap items-center gap-2">
                             {answer.question.type !== QuestionType.ESSAY ? (
                               <span className="app-badge app-badge-info">
-                                🤖 Auto: {formatScore(answer.autoScore)}
+                                {t("AttemptReview.auto", {
+                                  score: formatScore(answer.autoScore, locale),
+                                })}
                               </span>
                             ) : null}
                             <span
@@ -819,7 +875,14 @@ export function AttemptReview({
                                   : "app-badge app-badge-success"
                               }
                             >
-                              ✍ Manual: {getManualScoreLabel(previewManualScore, isReadOnlyMode)}
+                              {t("AttemptReview.manual", {
+                                score: getManualScoreLabel(
+                                  previewManualScore,
+                                  isReadOnlyMode,
+                                  locale,
+                                  t,
+                                ),
+                              })}
                             </span>
                           </div>
 
@@ -855,13 +918,14 @@ export function AttemptReview({
                         answer.question.type,
                         answer.responseJson,
                         answer.question.configJson,
+                        t,
                       )}
                     </div>
 
                     {isEssayAnswer(answer) ? (
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Feedback
+                          {t("AttemptReview.feedback")}
                         </label>
                         <textarea
                           value={answerForm.feedback}
@@ -884,7 +948,9 @@ export function AttemptReview({
                           rows={3}
                           className="app-textarea"
                           placeholder={
-                            isReadOnlyMode ? "Feedback is read-only on reviewed attempts." : "Optional answer feedback"
+                            isReadOnlyMode
+                              ? t("AttemptReview.feedbackReadOnly")
+                              : t("AttemptReview.feedbackPlaceholder")
                           }
                         />
                       </div>
@@ -896,7 +962,7 @@ export function AttemptReview({
 
             <div className="mt-6">
               <label className="mb-2 block text-sm font-medium text-slate-700">
-                Overall feedback
+                {t("AttemptReview.overallFeedback")}
               </label>
               <textarea
                 value={selectedAttemptForm?.teacherFeedback ?? ""}
@@ -914,8 +980,8 @@ export function AttemptReview({
                 className="app-textarea"
                 placeholder={
                   isReadOnlyMode
-                    ? "Overall feedback is read-only on reviewed attempts."
-                    : "Optional summary feedback for the whole attempt"
+                    ? t("AttemptReview.overallFeedbackReadOnly")
+                    : t("AttemptReview.overallFeedbackPlaceholder")
                 }
               />
             </div>
@@ -923,12 +989,12 @@ export function AttemptReview({
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-slate-500">
                 {isReadOnlyMode
-                  ? "Reviewed attempts can be moved back to review or reopened for the student."
+                  ? t("AttemptReview.readOnlyHistory")
                   : selectedAttemptCanSaveWithoutChanges
-                    ? "This attempt is waiting for teacher approval."
+                    ? t("AttemptReview.readyForApproval")
                   : selectedAttemptIsDirty
-                    ? "Changes not saved yet."
-                    : "No pending changes."}
+                    ? t("AttemptReview.unsavedChanges")
+                    : t("AttemptReview.allSaved")}
               </div>
 
               <div className="flex flex-wrap justify-end gap-3">
@@ -946,8 +1012,8 @@ export function AttemptReview({
                       className="app-button-secondary px-4 py-2"
                     >
                       {ungradingAttemptId === selectedAttempt.id
-                        ? "Review again..."
-                        : "Review again"}
+                        ? `${t("AttemptReview.movingToReview")}...`
+                        : t("AttemptReview.moveToReview")}
                     </button>
                     <button
                       type="button"
@@ -955,7 +1021,9 @@ export function AttemptReview({
                       disabled={reopeningAttemptId === selectedAttempt.id}
                       className="app-button-secondary px-4 py-2"
                     >
-                      {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
+                      {reopeningAttemptId === selectedAttempt.id
+                        ? t("AttemptReview.reopeningAttempt")
+                        : t("AttemptReview.reopenAttempt")}
                     </button>
                   </>
                 ) : (
@@ -966,7 +1034,9 @@ export function AttemptReview({
                       disabled={reopeningAttemptId === selectedAttempt.id}
                       className="app-button-secondary px-4 py-2"
                     >
-                      {reopeningAttemptId === selectedAttempt.id ? "Reopening..." : "Reopen attempt"}
+                      {reopeningAttemptId === selectedAttempt.id
+                        ? t("AttemptReview.reopeningAttempt")
+                        : t("AttemptReview.reopenAttempt")}
                     </button>
                   <button
                     type="button"
@@ -980,11 +1050,11 @@ export function AttemptReview({
                   >
                     {pendingAttemptId === selectedAttempt.id
                       ? selectedAttemptCanSaveWithoutChanges && !selectedAttemptIsDirty
-                        ? "Marking..."
-                        : "Saving..."
+                        ? t("AttemptReview.markingReviewed")
+                        : t("AttemptReview.savingGrading")
                       : selectedAttemptCanSaveWithoutChanges && !selectedAttemptIsDirty
-                        ? "Mark as reviewed"
-                        : "Save grading"}
+                        ? t("AttemptReview.markAsReviewed")
+                        : t("AttemptReview.saveGrading")}
                   </button>
                   </>
                 )}
@@ -993,9 +1063,7 @@ export function AttemptReview({
           </section>
         ) : (
           <div className="app-empty-state p-8 text-center text-slate-500">
-            {mode === "review"
-              ? "Select a student attempt to start grading."
-              : "Select a reviewed attempt to inspect it."}
+            {t("AttemptReview.selectAttempt")}
           </div>
         )}
       </div>

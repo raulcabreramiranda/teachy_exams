@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 import { IconButton } from "@/components/ui/icon-button";
@@ -19,15 +20,17 @@ type TeacherListsTableProps = {
 };
 
 export function TeacherListsTable({ lists }: TeacherListsTableProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const [pendingListId, setPendingListId] = useState<string | null>(null);
 
   async function handleDelete(listId: string) {
     const confirmed = await showConfirmAlert({
-      title: "Delete this exam?",
-      text: "This action removes the exam and its current assignments.",
-      confirmButtonText: "Delete",
-      cancelButtonText: "Keep",
+      title: t("TeacherLists.deleteTitle"),
+      text: t("TeacherLists.deleteText"),
+      confirmButtonText: t("TeacherLists.deleteConfirm"),
+      cancelButtonText: t("TeacherLists.deleteCancel"),
     });
 
     if (!confirmed) {
@@ -45,15 +48,15 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
       await showErrorAlert({
-        title: "Unable to delete the exam",
-        text: body?.message ?? "Try again in a moment.",
+        title: t("TeacherLists.deleteErrorTitle"),
+        text: body?.message ?? t("TeacherLists.deleteErrorText"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Exam deleted",
-      text: "The exam was removed successfully.",
+      title: t("TeacherLists.deletedTitle"),
+      text: t("TeacherLists.deletedText"),
       timer: 1000,
     });
     router.refresh();
@@ -63,11 +66,11 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Exams</h2>
-          <p className="text-sm text-slate-500">Create, edit, and delete exams.</p>
+          <h2 className="text-sm font-semibold text-slate-900">{t("TeacherLists.title")}</h2>
+          <p className="text-sm text-slate-500">{t("TeacherLists.subtitle")}</p>
         </div>
         <IconButton
-          label="New exam"
+          label={t("TeacherLists.newExam")}
           href="/professor/lists/new"
           icon={<PlusIcon />}
         />
@@ -77,19 +80,19 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
         <table className="app-table">
           <thead>
             <tr>
-              <th className="px-4 py-3">Title</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Questions</th>
-              <th className="px-4 py-3">Assignments</th>
-              <th className="px-4 py-3">Due date</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-3">{t("TeacherLists.columns.title")}</th>
+              <th className="px-4 py-3">{t("TeacherLists.columns.status")}</th>
+              <th className="px-4 py-3">{t("TeacherLists.columns.questions")}</th>
+              <th className="px-4 py-3">{t("TeacherLists.columns.assignments")}</th>
+              <th className="px-4 py-3">{t("TeacherLists.columns.dueDate")}</th>
+              <th className="px-4 py-3 text-right">{t("Common.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {lists.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No exams found.
+                  {t("TeacherLists.noExams")}
                 </td>
               </tr>
             ) : (
@@ -104,21 +107,23 @@ export function TeacherListsTable({ lists }: TeacherListsTableProps) {
                           : "app-badge"
                       }
                     >
-                      {list.publishedAt ? "✅ Published" : "Draft"}
+                      {list.publishedAt ? t("Status.published") : t("Status.draft")}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{list.questionsCount}</td>
                   <td className="px-4 py-3 text-slate-600">{list.assignmentsCount}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDateTime(list.dueAt)}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {formatDateTime(list.dueAt, locale)}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <IconButton
-                        label="Edit exam"
+                        label={t("TeacherLists.editExam")}
                         href={`/professor/lists/${list.id}/edit`}
                         icon={<PencilIcon />}
                       />
                       <IconButton
-                        label="Delete exam"
+                        label={t("TeacherLists.deleteExam")}
                         icon={<TrashIcon />}
                         variant="danger"
                         disabled={pendingListId === list.id}

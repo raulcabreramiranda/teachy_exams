@@ -1,10 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import { showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
 
 export function LoginForm() {
+  const t = useTranslations("Login");
   const router = useRouter();
   const [email, setEmail] = useState("teacher@teachy.test");
   const [password, setPassword] = useState("password123");
@@ -33,15 +35,15 @@ export function LoginForm() {
 
     if (!response.ok) {
       await showErrorAlert({
-        title: "Unable to sign in",
-        text: body?.message ?? "Check the provided credentials and try again.",
+        title: t("unableToSignIn"),
+        text: body?.message ?? t("checkCredentials"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Signed in",
-      text: "Redirecting to your dashboard.",
+      title: t("signedIn"),
+      text: t("redirecting"),
       timer: 900,
     });
 
@@ -55,13 +57,13 @@ export function LoginForm() {
       className="app-card space-y-5 p-6"
     >
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
-        <p className="text-sm text-slate-500">Use one of the seeded accounts below.</p>
+        <h1 className="text-lg font-semibold text-slate-900">{t("title")}</h1>
+        <p className="text-sm text-slate-500">{t("subtitle")}</p>
       </div>
 
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">
-          Email
+          {t("email")}
         </label>
         <input
           value={email}
@@ -75,7 +77,7 @@ export function LoginForm() {
 
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">
-          Password
+          {t("password")}
         </label>
         <input
           value={password}
@@ -92,13 +94,13 @@ export function LoginForm() {
         disabled={isPending}
         className="app-button-primary w-full px-3 py-2"
       >
-        {isPending ? "Signing in..." : "Sign in"}
+        {isPending ? t("signingIn") : t("signIn")}
       </button>
 
       <div className="app-panel px-3 py-3 text-xs text-slate-600">
-        <p className="font-medium text-slate-700">Seeded accounts</p>
-        <p className="mt-1">Teacher: teacher@teachy.test / password123</p>
-        <p>Students: bob@teachy.test or carol@teachy.test / password123</p>
+        <p className="font-medium text-slate-700">{t("seededAccounts")}</p>
+        <p className="mt-1">{t("teacherAccount")}</p>
+        <p>{t("studentAccounts")}</p>
       </div>
     </form>
   );

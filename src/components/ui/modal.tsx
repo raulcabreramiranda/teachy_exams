@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 type ModalProps = {
   open: boolean;
   title: string;
@@ -8,6 +10,8 @@ type ModalProps = {
 };
 
 export function Modal({ open, title, onClose, children }: ModalProps) {
+  const t = useTranslations("Common");
+
   if (!open) {
     return null;
   }
@@ -22,7 +26,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
             onClick={onClose}
             className="app-button-secondary px-2 py-1 text-xs"
           >
-            Close
+            {t("close")}
           </button>
         </div>
         <div className="p-4">{children}</div>

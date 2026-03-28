@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Link } from "@/i18n/navigation";
 
 type IconButtonProps = {
   label: string;

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
+import { defaultLocale, getLocalizedPathname, isValidLocale } from "@/i18n/routing";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 
@@ -115,15 +116,25 @@ export async function getSessionFromRequest(request: NextRequest | Request) {
   return verifySessionToken(cookieHeader);
 }
 
-export async function requirePageSession(roles?: Role[]) {
+function getLocaleRedirectPath(locale: string | undefined, pathname: string) {
+  const activeLocale = isValidLocale(locale) ? locale : defaultLocale;
+  return getLocalizedPathname(activeLocale, pathname);
+}
+
+export async function requirePageSession(roles?: Role[], locale?: string) {
   const session = await getCurrentSession();
 
   if (!session) {
-    redirect("/login");
+    redirect(getLocaleRedirectPath(locale, "/login"));
   }
 
   if (roles && !roles.includes(session.role)) {
-    redirect(session.role === Role.TEACHER ? "/professor" : "/aluno");
+    redirect(
+      getLocaleRedirectPath(
+        locale,
+        session.role === Role.TEACHER ? "/professor" : "/aluno",
+      ),
+    );
   }
 
   return session;

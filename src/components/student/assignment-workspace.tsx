@@ -1,10 +1,10 @@
 "use client";
 
 import { QuestionType } from "@prisma/client";
-import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { RichTextContent } from "@/components/ui/rich-text-content";
+import { Link, useRouter } from "@/i18n/navigation";
 import { isTeacherReopenedAttempt } from "@/lib/attempts";
 import { formatDateTime } from "@/lib/format";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "@/lib/sweetalert";
@@ -81,6 +81,8 @@ function isQuestionAnswered(
 }
 
 export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const attempt = assignment.attempt;
   const isReopenedByTeacher = attempt
@@ -165,11 +167,11 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
   function formatRemainingTime(milliseconds: number | null) {
     if (milliseconds === null) {
-      return "No active timer";
+      return t("AssignmentWorkspace.noActiveTimer");
     }
 
     if (milliseconds <= 0) {
-      return "Expired";
+      return t("AssignmentWorkspace.expired");
     }
 
     const totalSeconds = Math.floor(milliseconds / 1000);
@@ -181,12 +183,14 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
   async function handleStartAttempt() {
     const confirmed = await showConfirmAlert({
-      title: "Start this exam?",
+      title: t("AssignmentWorkspace.startTitle"),
       text: assignment.list.timeLimitMinutes
-        ? `The timer will start immediately and you will have ${assignment.list.timeLimitMinutes} minutes to finish.`
-        : "Once started, the attempt will be opened immediately.",
-      confirmButtonText: "Start now",
-      cancelButtonText: "Not yet",
+        ? t("AssignmentWorkspace.startWithTimer", {
+            minutes: assignment.list.timeLimitMinutes,
+          })
+        : t("AssignmentWorkspace.startWithoutTimer"),
+      confirmButtonText: t("AssignmentWorkspace.startConfirm"),
+      cancelButtonText: t("AssignmentWorkspace.startCancel"),
     });
 
     if (!confirmed) {
@@ -207,15 +211,15 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
     if (!response.ok) {
       await showErrorAlert({
-        title: "Unable to start the exam",
-        text: body?.message ?? "Try again in a moment.",
+        title: t("AssignmentWorkspace.startErrorTitle"),
+        text: body?.message ?? t("AssignmentWorkspace.startErrorText"),
       });
       return;
     }
 
     await showSuccessAlert({
-      title: "Exam started",
-      text: "Your attempt is now open.",
+      title: t("AssignmentWorkspace.startedTitle"),
+      text: t("AssignmentWorkspace.startedText"),
       timer: 900,
     });
     router.refresh();
@@ -268,8 +272,11 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     if (!response.ok) {
       if (!silent) {
         await showErrorAlert({
-          title: mode === "save" ? "Unable to save draft" : "Unable to submit exam",
-          text: body?.message ?? "Try again in a moment.",
+          title:
+            mode === "save"
+              ? t("AssignmentWorkspace.saveErrorTitle")
+              : t("AssignmentWorkspace.submitErrorTitle"),
+          text: body?.message ?? t("AssignmentWorkspace.persistErrorText"),
         });
       }
 
@@ -279,8 +286,8 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     if (mode === "save") {
       if (!silent) {
         await showSuccessAlert({
-          title: "Draft saved",
-          text: "Your latest answers were stored successfully.",
+          title: t("AssignmentWorkspace.draftSavedTitle"),
+          text: t("AssignmentWorkspace.draftSavedText"),
           timer: 900,
         });
       }
@@ -293,8 +300,8 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     }
 
     await showSuccessAlert({
-      title: "Exam submitted",
-      text: "Your answers were sent successfully.",
+      title: t("AssignmentWorkspace.submittedTitle"),
+      text: t("AssignmentWorkspace.submittedText"),
       timer: 900,
     });
     router.push(`/aluno/attempts/${attempt.id}/result`);
@@ -312,14 +319,17 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
     const confirmed = await showConfirmAlert({
       title:
         unansweredQuestions.length > 0
-          ? "Submit with unanswered questions?"
-          : "Submit exam?",
+          ? t("AssignmentWorkspace.submitWithUnansweredTitle")
+          : t("AssignmentWorkspace.submitTitle"),
       text:
         unansweredQuestions.length > 0
-          ? `You still have ${unansweredQuestions.length} unanswered question${unansweredQuestions.length === 1 ? "" : "s"}: ${unansweredQuestions.join(", ")}.`
-          : "You are about to finish this exam. You will not be able to change your answers after submission.",
-      confirmButtonText: "Submit exam",
-      cancelButtonText: "Continue editing",
+          ? t("AssignmentWorkspace.submitWithUnansweredText", {
+              count: unansweredQuestions.length,
+              questions: unansweredQuestions.join(", "),
+            })
+          : t("AssignmentWorkspace.submitText"),
+      confirmButtonText: t("AssignmentWorkspace.submitConfirm"),
+      cancelButtonText: t("AssignmentWorkspace.submitCancel"),
     });
 
     if (!confirmed) {
@@ -347,8 +357,8 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
     if (!saved) {
       await showErrorAlert({
-        title: "Unable to change question",
-        text: "Your draft could not be saved. Try again in a moment.",
+        title: t("AssignmentWorkspace.changeQuestionErrorTitle"),
+        text: t("AssignmentWorkspace.changeQuestionErrorText"),
       });
       return;
     }
@@ -362,7 +372,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-              Exam
+              {t("AssignmentWorkspace.exam")}
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{assignment.list.title}</h2>
             {assignment.list.description ? (
@@ -373,15 +383,30 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
           </div>
 
           <div className="app-panel rounded-2xl px-4 py-4 text-sm text-slate-600">
-            <p>Assigned: {formatDateTime(assignment.assignedAt)}</p>
-            <p>Due date: {formatDateTime(assignment.list.dueAt)}</p>
             <p>
-              Time limit:{" "}
-              {assignment.list.timeLimitMinutes
-                ? `${assignment.list.timeLimitMinutes} minutes`
-                : "No time limit"}
+              {t("AssignmentWorkspace.assigned", {
+                date: formatDateTime(assignment.assignedAt, locale),
+              })}
             </p>
-            {attempt ? <p>Remaining: {formatRemainingTime(remainingMilliseconds)}</p> : null}
+            <p>
+              {t("AssignmentWorkspace.dueDate", {
+                date: formatDateTime(assignment.list.dueAt, locale),
+              })}
+            </p>
+            <p>
+              {t("AssignmentWorkspace.timeLimit", {
+                value: assignment.list.timeLimitMinutes
+                  ? `${assignment.list.timeLimitMinutes} min`
+                  : t("AssignmentWorkspace.noTimeLimit"),
+              })}
+            </p>
+            {attempt ? (
+              <p>
+                {t("AssignmentWorkspace.remaining", {
+                  value: formatRemainingTime(remainingMilliseconds),
+                })}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -393,11 +418,13 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               disabled={isPending || (dueDate !== null && dueDate.getTime() < Date.now())}
               className="app-button-primary rounded-full px-6 py-3"
             >
-              {pendingAction === "start" ? "Starting..." : "Start exam"}
+              {pendingAction === "start"
+                ? t("AssignmentWorkspace.starting")
+                : t("AssignmentWorkspace.startExam")}
             </button>
             {dueDate !== null && dueDate.getTime() < Date.now() ? (
               <p className="text-sm text-rose-700">
-                The due date has passed. New attempts are blocked.
+                {t("AssignmentWorkspace.dueDatePassed")}
               </p>
             ) : null}
           </div>
@@ -405,23 +432,23 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
 
         {attempt && attempt.status !== "IN_PROGRESS" ? (
           <div className="app-panel mt-6 rounded-2xl border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
-            This exam has already been submitted.
+            {t("AssignmentWorkspace.alreadySubmitted")}
             {" "}
             <Link href={`/aluno/attempts/${attempt.id}/result`} className="font-semibold underline">
-              View result
+              {t("AssignmentWorkspace.viewResult")}
             </Link>
           </div>
         ) : null}
 
         {attempt && attempt.status === "IN_PROGRESS" && isReopenedByTeacher ? (
           <div className="app-panel mt-6 rounded-2xl border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-800">
-            Your teacher reopened this exam. Your previous answers were kept and the timer restarted.
+            {t("AssignmentWorkspace.reopenedNotice")}
           </div>
         ) : null}
 
         {attempt && attempt.status === "IN_PROGRESS" && isExpired ? (
           <div className="app-panel mt-6 rounded-2xl border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-            The allowed time has ended. This attempt is being finalized automatically.
+            {t("AssignmentWorkspace.expiredNotice")}
           </div>
         ) : null}
 
@@ -437,7 +464,10 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                    Question {currentQuestion.order} of {assignment.list.questions.length}
+                    {t("AssignmentWorkspace.questionCounter", {
+                      current: currentQuestion.order,
+                      total: assignment.list.questions.length,
+                    })}
                   </p>
                   <RichTextContent
                     html={currentQuestion.prompt}
@@ -445,7 +475,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                   />
                 </div>
                 <div className="app-badge app-badge-info px-4 py-2 text-sm">
-                  {currentQuestion.points} points
+                  {t("AssignmentWorkspace.points", { count: currentQuestion.points })}
                 </div>
               </div>
 
@@ -505,7 +535,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                   className="app-textarea rounded-2xl bg-slate-50 px-4 py-3"
                   placeholder={
                     ((currentQuestion.configJson as { placeholder?: string }).placeholder ??
-                      "Write your answer here.")
+                      t("AssignmentWorkspace.writeAnswer"))
                   }
                 />
               ) : null}
@@ -597,7 +627,7 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                           }
                           className="app-select rounded-xl"
                         >
-                          <option value="">Select a match</option>
+                          <option value="">{t("AssignmentWorkspace.selectMatch")}</option>
                           {(currentQuestion.configJson as MatchingConfig).rightItems.map((rightItem) => (
                             <option key={rightItem.id} value={rightItem.id}>
                               {rightItem.label}
@@ -620,7 +650,9 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || currentQuestionIndex === 0}
                 className="app-button-secondary rounded-full px-4 py-2"
               >
-                {pendingAction === "previous" ? "Previous..." : "Previous"}
+                {pendingAction === "previous"
+                  ? t("AssignmentWorkspace.previousLoading")
+                  : t("AssignmentWorkspace.previous")}
               </button>
               <button
                 type="button"
@@ -630,10 +662,15 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 }
                 className="app-button-secondary rounded-full px-4 py-2"
               >
-                {pendingAction === "next" ? "Next..." : "Next"}
+                {pendingAction === "next"
+                  ? t("AssignmentWorkspace.nextLoading")
+                  : t("AssignmentWorkspace.next")}
               </button>
               <span className="text-sm text-slate-500">
-                Question {currentQuestionIndex + 1} of {assignment.list.questions.length}
+                {t("AssignmentWorkspace.questionCounter", {
+                  current: currentQuestionIndex + 1,
+                  total: assignment.list.questions.length,
+                })}
               </span>
             </div>
 
@@ -644,7 +681,9 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || isExpired}
                 className="app-button-secondary rounded-full px-6 py-3"
               >
-                {pendingAction === "save" ? "Saving..." : "Save draft"}
+                {pendingAction === "save"
+                  ? t("AssignmentWorkspace.saving")
+                  : t("AssignmentWorkspace.saveDraft")}
               </button>
               <button
                 type="button"
@@ -652,7 +691,9 @@ export function AssignmentWorkspace({ assignment }: AssignmentWorkspaceProps) {
                 disabled={isPending || isExpired}
                 className="app-button-primary rounded-full px-6 py-3"
               >
-                {pendingAction === "submit" ? "Submitting..." : "Submit exam"}
+                {pendingAction === "submit"
+                  ? t("AssignmentWorkspace.submitting")
+                  : t("AssignmentWorkspace.submit")}
               </button>
             </div>
           </div>
